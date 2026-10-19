@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "جامع الوقوف",
+    "slug": "jamei-woukouf",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "org.jamei.woukouf"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#F6F4EE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "org.jamei.woukouf"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "scheme": "jamei",
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "supportsRTL": true
+    }
+  }
+}

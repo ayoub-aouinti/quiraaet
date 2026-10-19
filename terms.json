@@ -1,0 +1,551 @@
+{
+  "_ملاحظة": "جدول المصطلحات والمطابقة. كل سطر قابل للتعديل من المتخصص. الحقل reviewed=false يعني أن المطابقة اقتراح لم يُراجع بعد.",
+  "sources": {
+    "dani": {
+      "name": "المكتفى في الوقف والابتدا",
+      "author": "أبو عمرو الداني",
+      "died": "444هـ",
+      "terms": {
+        "ت": {
+          "term": "تام",
+          "category": "tam",
+          "approx": false,
+          "reviewed": false
+        },
+        "ك": {
+          "term": "كاف",
+          "category": "kafi",
+          "approx": false,
+          "reviewed": false
+        },
+        "ح": {
+          "term": "حسن",
+          "category": "hasan",
+          "approx": false,
+          "reviewed": false
+        },
+        "أت": {
+          "term": "أتم",
+          "category": "tam",
+          "approx": true,
+          "reviewed": false
+        },
+        "أك": {
+          "term": "أكفى",
+          "category": "kafi",
+          "approx": true,
+          "reviewed": false
+        },
+        "ص": {
+          "term": "صالح",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        }
+      }
+    },
+    "saj": {
+      "name": "علل الوقوف",
+      "author": "محمد بن طيفور السجاوندي",
+      "died": "560هـ",
+      "terms": {
+        "م": {
+          "term": "لازم",
+          "category": "tam",
+          "approx": true,
+          "reviewed": false
+        },
+        "ط": {
+          "term": "مطلق",
+          "category": "kafi",
+          "approx": true,
+          "reviewed": false
+        },
+        "ج": {
+          "term": "جائز",
+          "category": "jaiz",
+          "approx": false,
+          "reviewed": false
+        },
+        "ز": {
+          "term": "مجوَّز لوجه",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        },
+        "ص": {
+          "term": "مرخَّص ضرورةً",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        },
+        "لا": {
+          "term": "لا يوقف عليه",
+          "category": "mamnu",
+          "approx": false,
+          "reviewed": false
+        },
+        "ق": {
+          "term": "قيل إنه وقف",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        }
+      }
+    },
+    "ansari": {
+      "name": "المقصد لتلخيص ما في المرشد",
+      "author": "زكريا الأنصاري",
+      "died": "926هـ",
+      "terms": {
+        "ت": {
+          "term": "تام",
+          "category": "tam",
+          "approx": false,
+          "reviewed": false
+        },
+        "ك": {
+          "term": "كاف",
+          "category": "kafi",
+          "approx": false,
+          "reviewed": false
+        },
+        "ح": {
+          "term": "حسن",
+          "category": "hasan",
+          "approx": false,
+          "reviewed": false
+        },
+        "ص": {
+          "term": "صالح",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        },
+        "ج": {
+          "term": "جائز",
+          "category": "jaiz",
+          "approx": false,
+          "reviewed": false
+        },
+        "ق": {
+          "term": "قبيح",
+          "category": "mamnu",
+          "approx": true,
+          "reviewed": false
+        },
+        "لا": {
+          "term": "ليس بوقف",
+          "category": "mamnu",
+          "approx": false,
+          "reviewed": false
+        },
+        "مف": {
+          "term": "مفهوم",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        },
+        "ب": {
+          "term": "بيان",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        }
+      }
+    },
+    "ashmuni": {
+      "name": "منار الهدى في بيان الوقف والابتدا",
+      "author": "أحمد بن محمد الأشموني",
+      "died": "نحو 1100هـ",
+      "terms": {
+        "ت": {
+          "term": "تام",
+          "category": "tam",
+          "approx": false,
+          "reviewed": false
+        },
+        "ك": {
+          "term": "كاف",
+          "category": "kafi",
+          "approx": false,
+          "reviewed": false
+        },
+        "ح": {
+          "term": "حسن",
+          "category": "hasan",
+          "approx": false,
+          "reviewed": false
+        },
+        "أح": {
+          "term": "أحسن",
+          "category": "hasan",
+          "approx": true,
+          "reviewed": false
+        },
+        "ج": {
+          "term": "جائز",
+          "category": "jaiz",
+          "approx": false,
+          "reviewed": false
+        },
+        "ص": {
+          "term": "صالح",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        },
+        "ق": {
+          "term": "قبيح",
+          "category": "mamnu",
+          "approx": true,
+          "reviewed": false
+        },
+        "لا": {
+          "term": "ليس بوقف",
+          "category": "mamnu",
+          "approx": false,
+          "reviewed": false
+        },
+        "مف": {
+          "term": "مفهوم",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        },
+        "ب": {
+          "term": "بيان",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        }
+      }
+    },
+    "hubti": {
+      "name": "وقف الهبطي (المصحف المحمدي المغربي — ورش)",
+      "author": "أبو عبد الله محمد بن أبي جمعة الهبطي",
+      "died": "930هـ",
+      "terms": {
+        "ص": {
+          "term": "وقف الهبطي (صالح للوقف)",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        }
+      }
+    },
+    "anbari": {
+      "name": "إيضاح الوقف والابتداء",
+      "author": "أبو بكر بن الأنباري",
+      "died": "328هـ",
+      "terms": {
+        "ت": {
+          "term": "تامّ",
+          "category": "tam",
+          "approx": false,
+          "reviewed": false
+        },
+        "ك": {
+          "term": "كافٍ",
+          "category": "kafi",
+          "approx": false,
+          "reviewed": false
+        },
+        "ح": {
+          "term": "حسن",
+          "category": "hasan",
+          "approx": false,
+          "reviewed": false
+        },
+        "ص": {
+          "term": "صالح",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        },
+        "ق": {
+          "term": "قبيح",
+          "category": "mamnu",
+          "approx": true,
+          "reviewed": false
+        },
+        "لا": {
+          "term": "ليس بوقف",
+          "category": "mamnu",
+          "approx": false,
+          "reviewed": false
+        }
+      }
+    },
+    "nahhas": {
+      "name": "القطع والائتناف",
+      "author": "أبو جعفر النحاس",
+      "died": "338هـ",
+      "terms": {
+        "ت": {
+          "term": "تامّ",
+          "category": "tam",
+          "approx": false,
+          "reviewed": false
+        },
+        "ك": {
+          "term": "كافٍ",
+          "category": "kafi",
+          "approx": false,
+          "reviewed": false
+        },
+        "ح": {
+          "term": "حسن",
+          "category": "hasan",
+          "approx": false,
+          "reviewed": false
+        },
+        "ص": {
+          "term": "صالح",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        },
+        "و": {
+          "term": "موضع قطع",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        },
+        "لا": {
+          "term": "ليس بوقف",
+          "category": "mamnu",
+          "approx": false,
+          "reviewed": false
+        }
+      }
+    },
+    "ibn_sadan": {
+      "name": "الوقف والابتداء في كتاب الله عز وجل",
+      "author": "ابن سعدان الكوفي الضرير",
+      "died": "231هـ",
+      "terms": {
+        "و": {
+          "term": "موضع قطع",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        },
+        "ت": {
+          "term": "تامّ",
+          "category": "tam",
+          "approx": false,
+          "reviewed": false
+        },
+        "ح": {
+          "term": "حسن",
+          "category": "hasan",
+          "approx": false,
+          "reviewed": false
+        },
+        "ج": {
+          "term": "جائز",
+          "category": "jaiz",
+          "approx": false,
+          "reviewed": false
+        },
+        "ق": {
+          "term": "قبيح",
+          "category": "mamnu",
+          "approx": true,
+          "reviewed": false
+        },
+        "لا": {
+          "term": "ليس بوقف",
+          "category": "mamnu",
+          "approx": false,
+          "reviewed": false
+        }
+      }
+    },
+    "akhshid": {
+      "name": "منازل القرآن في الوقوف",
+      "author": "ابن الأخشيذ الأصبهاني",
+      "died": "524هـ",
+      "terms": {
+        "سن": {
+          "term": "وقف سنّة",
+          "category": "tam",
+          "approx": true,
+          "reviewed": false
+        },
+        "و": {
+          "term": "موضع قطع",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        },
+        "ك": {
+          "term": "كافٍ",
+          "category": "kafi",
+          "approx": false,
+          "reviewed": false
+        },
+        "ح": {
+          "term": "حسن",
+          "category": "hasan",
+          "approx": false,
+          "reviewed": false
+        },
+        "ت": {
+          "term": "تامّ",
+          "category": "tam",
+          "approx": false,
+          "reviewed": false
+        },
+        "آ": {
+          "term": "رأس آية",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        },
+        "ج": {
+          "term": "جائز",
+          "category": "jaiz",
+          "approx": false,
+          "reviewed": false
+        },
+        "مف": {
+          "term": "مفهوم",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        },
+        "ص": {
+          "term": "صالح",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        },
+        "ق": {
+          "term": "قبيح",
+          "category": "mamnu",
+          "approx": true,
+          "reviewed": false
+        },
+        "لا": {
+          "term": "ليس بوقف",
+          "category": "mamnu",
+          "approx": false,
+          "reviewed": false
+        }
+      }
+    },
+    "ghazzal": {
+      "name": "الوقف والابتداء",
+      "author": "الغزّال النيسابوري",
+      "died": "516هـ",
+      "_ملاحظة": "يختصر المؤلف المرتبة بحرفٍ واحد. وقد نصّ في «فصل في بيان أنواع الوقف» على أن الوقف أربعة: حسن، وكافٍ، وتامّ، ووقف البيان. وفحصُ ٢٥٣ موضعاً من مواضع رمز «م» عالية الثقة أعطى موافقةَ الداني في التمام ٩٤٪ وابن الأنباري ٩٥٪، وموافقةَ رمز «ح» لحسن ابن الأنباري ٨٩٪؛ فعلى هذا فُسِّرت الرموز. والرمزُ المطبوع محفوظٌ كما هو في عمود «مصطلح المصدر».",
+      "terms": {
+        "ح": {
+          "term": "ح — حسن",
+          "category": "hasan",
+          "approx": false,
+          "reviewed": false
+        },
+        "ك": {
+          "term": "ك — كافٍ",
+          "category": "kafi",
+          "approx": false,
+          "reviewed": false
+        },
+        "ت": {
+          "term": "م / ت — تامّ",
+          "category": "tam",
+          "approx": false,
+          "reviewed": false
+        },
+        "شت": {
+          "term": "شبه التام",
+          "category": "kafi",
+          "approx": true,
+          "reviewed": false
+        },
+        "ب": {
+          "term": "وقف البيان",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        },
+        "ج": {
+          "term": "يجوز · وإن شئت",
+          "category": "jaiz",
+          "approx": false,
+          "reviewed": false
+        },
+        "و": {
+          "term": "موضع قطع",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        },
+        "مف": {
+          "term": "مفهوم",
+          "category": "jaiz",
+          "approx": true,
+          "reviewed": false
+        },
+        "ق": {
+          "term": "قبيح",
+          "category": "mamnu",
+          "approx": true,
+          "reviewed": false
+        },
+        "لا": {
+          "term": "ليس بوقف",
+          "category": "mamnu",
+          "approx": false,
+          "reviewed": false
+        }
+      }
+    }
+  },
+  "categories": {
+    "tam": {
+      "label": "وقف تام",
+      "code": "ت",
+      "color": "#1B6B3A"
+    },
+    "kafi": {
+      "label": "وقف كاف",
+      "code": "ك",
+      "color": "#1F5E99"
+    },
+    "hasan": {
+      "label": "وقف حسن",
+      "code": "ح",
+      "color": "#8A5A00"
+    },
+    "jaiz": {
+      "label": "وقف جائز",
+      "code": "ج",
+      "color": "#56605D"
+    },
+    "mamnu": {
+      "label": "وقف ممنوع",
+      "code": "لا",
+      "color": "#A03A28"
+    },
+    "muanaqa": {
+      "label": "معانقة",
+      "code": "∴",
+      "color": "#6B3FA0"
+    }
+  },
+  "typos": {
+    "اك": "أك",
+    "ىلا": "لا",
+    "زط": "ز/ط",
+    "لاط": "لا/ط",
+    "تت": null,
+    "كت": null,
+    "هـ": null,
+    "!!!!": null,
+    "ك/Ø": null
+  }
+}

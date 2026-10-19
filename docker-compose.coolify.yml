@@ -1,0 +1,42 @@
+# Coolify: Resource ← Docker Compose ← هذا الملف.
+# المتغيّرات المطلوبة في Coolify: POSTGRES_PASSWORD و ADMIN_TOKENS
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jamei
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: jamei
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jamei -d jamei"]
+      interval: 10s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://jamei:${POSTGRES_PASSWORD:?}@db:5432/jamei
+      ADMIN_TOKENS: ${ADMIN_TOKENS:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      - SERVICE_FQDN_WEB_80
+
+volumes:
+  pgdata:

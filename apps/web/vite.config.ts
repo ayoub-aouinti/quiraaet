@@ -1,0 +1,13 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+// في التطوير يُمرَّر /api إلى الواجهة البرمجية، فيكون الويبُ والواجهةُ أصلاً واحداً.
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': process.env.API_PROXY ?? 'http://localhost:3000',
+    },
+  },
+});
