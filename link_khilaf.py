@@ -7,9 +7,9 @@
 """
 import json, re, sys
 from collections import Counter
-from read_doc import read_doc
+from riwayat_text import riwaya_words
 from normalize import norm
-from build_diff import norm as cnorm   # يوحّد اصطلاحات الخط المغربي قبل التجريد
+from canon import norm as cnorm   # يوحّد اصطلاحات الخط المغربي قبل التجريد
 
 DOC = 'sources/mushafs/qalun/UthmanicQaloon1 Ver08.doc'
 HEAD = re.compile(r'سُورَةُ\s+(.+?)(?=بِسْمِ)')
@@ -33,36 +33,7 @@ def plain_names():
 
 
 def qalun_words():
-    text = re.sub(r'[\x00-\x1f]', ' ', read_doc(DOC))   # control chars of Word (x08 = section end)
-    names = plain_names()
-    pos, heads = 0, []
-    for n, nm in enumerate(names, 1):
-        i = text.index('سُورَةُ', pos)
-        j, acc, target = i + len('سُورَةُ'), '', norm(nm)
-        while j < len(text) and len(acc) < len(target):
-            acc += norm(text[j])
-            j += 1
-        while j < len(text) and norm(text[j]) == '' and text[j] != ' ':   # حركات لاحقة بالاسم
-            j += 1
-        assert acc == target, (n, nm, acc)
-        heads.append((i, j, text[i + len('سُورَةُ'):j].strip()))
-        pos = j
-    words, suras = [], []
-    for k, (i, j, nm) in enumerate(heads):
-        suras.append(nm)
-        end = heads[k + 1][0] if k + 1 < len(heads) else len(text)
-        body = text[j:end]
-        body = re.sub(r'^\s*بِسْمِ\s+اِ۬للَّهِ\s+اِ۬لرَّحْمَٰنِ\s+اِ۬لرَّحِيمِ', '', body, count=1)
-        ayah, wpos = 1, 0
-        for tok in body.split():
-            if DIGITS.match(tok):
-                ayah = int(tok.translate(AR2)) + 1
-                wpos = 0
-                continue
-            wpos += 1
-            words.append({'seq': len(words) + 1, 'sura': k + 1, 'ayah': ayah,
-                          'wpos': wpos, 'text': tok})
-    return suras, words
+    return riwaya_words(DOC)
 
 
 def sura_index(suras):
@@ -75,7 +46,7 @@ def main():
     print(len(suras), 'سورة ·', len(words), 'كلمة')
     ayat = Counter((w['sura'], w['ayah']) for w in words)
     print('آيات:', len(ayat))
-    idx = sura_index(suras)
+    idx = sura_index(plain_names())
     by_ayah = {}
     for w in words:
         by_ayah.setdefault((w['sura'], w['ayah']), []).append(w)

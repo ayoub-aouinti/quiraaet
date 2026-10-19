@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>اقرأ — قالون ومقابلة القراءات</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="bar">
+  <h1>اقرأ <small>قالون ومقابلة القراءات</small></h1>
+  <label class="sel"><span class="sr">السورة</span>
+    <select id="sura" aria-label="السورة"></select>
+  </label>
+  <div class="seg" role="tablist" aria-label="وجه العرض">
+    <button id="mode-q" role="tab" aria-selected="true">قالون ومقابلة القراءات</button>
+    <button id="mode-r" role="tab" aria-selected="false">مصحف رواية</button>
+  </div>
+  <div class="sz" aria-label="حجم الخط">
+    <button id="fs-" aria-label="تصغير الخط">أ−</button>
+    <button id="fs+" aria-label="تكبير الخط">أ+</button>
+  </div>
+  <button id="toggle-panel" class="panel-btn" aria-controls="panel" aria-expanded="true">القراءات</button>
+</header>
+
+<div class="layout">
+  <aside id="panel" class="panel" aria-label="اختيار القراءات">
+    <section id="panel-q">
+      <p class="hint">اختر الرواة الذين تريد مقابلتهم بقالون؛ تُلوَّن الكلمات والحروف التي يخالفون فيها.</p>
+      <div id="groups"></div>
+      <div class="row">
+        <button id="all-on" class="lnk">تحديد الكل</button>
+        <button id="all-off" class="lnk">إلغاء الكل</button>
+      </div>
+    </section>
+    <section id="panel-r" hidden>
+      <p class="hint">اختر المصحف؛ تُلوَّن فيه الكلمات المخالفة لقالون.</p>
+      <div id="riw-list"></div>
+      <ul class="legend">
+        <li><i class="sw k1"></i> ضبط مخالف (حركات أو همزات) — مرشَّح للمراجعة</li>
+        <li><i class="sw k2"></i> رسم مخالف</li>
+        <li><i class="sw k3"></i> كلمة لا مقابل لها في قالون</li>
+      </ul>
+    </section>
+    <p class="note">
+      النصوص والخطوط: مجمع الملك فهد لطباعة المصحف الشريف.
+      بيانات الخلاف أُعدَّت بمعونة نموذج ولم تُراجَع بعدُ على كتب القراءات،
+      فهي <b>غير مُتحقَّق منها</b>. العلامة ≈ تعني أن موضع الخلاف رُبط بكلمة قالون
+      بتقريب (اختلاف عدّ الآي أو الضبط).
+    </p>
+  </aside>
+
+  <main id="reader" class="reader" aria-live="polite">
+    <div id="status" class="status">جارٍ التحميل…</div>
+    <div id="text" class="text"></div>
+  </main>
+</div>
+
+<div id="sheet" class="sheet" role="dialog" aria-modal="false" aria-labelledby="sheet-title" hidden>
+  <div class="sheet-head">
+    <h2 id="sheet-title"></h2>
+    <button id="sheet-close" aria-label="إغلاق">×</button>
+  </div>
+  <div id="sheet-body" class="sheet-body"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
