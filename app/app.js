@@ -249,7 +249,7 @@ function renderX() {
       const w = mk('span', 'w'); w.dataset.q = seq; w.dataset.f = 'qalun';
       const p = rep.get(seq);
       if (p) {
-        w.classList.add('k1'); if (p.r.ap) w.classList.add('ap');
+        w.classList.add('k1');
         w.dataset.k = 1; w.dataset.t = p.r.x; w.dataset.f = p.r.f || 'hafs';
         setFont(w, w.dataset.f);
         w.appendChild(p.r.dx ? paintUnderline(p.r.x, new Set(p.r.dx)) : document.createTextNode(p.r.x));
@@ -281,7 +281,7 @@ function entryNode(e, only, hl) {
   if (e.t === 'shifted') h.append(mk('span', 'tag warn', '≈ رُبط بآية مجاورة (اختلاف العدّ)'));
   else if (e.t === 'rasm') h.append(mk('span', 'tag warn', '≈ مطابقة بالرسم'));
   else if (e.t === 'm') h.append(mk('span', 'tag', 'فرق في المصحف'));
-  else if (e.t === 'p') h.append(mk('span', 'tag warn', '≈ نظيرٌ لموضعٍ نصَّ عليه المصدر، عُمِّم بمصحف راوٍ اتفق معه في الوجه'));
+  else if (e.t === 'u') h.append(mk('span', 'tag', 'أصلٌ عامّ معمَّم على مواضعه'));
   if (e.u) h.append(mk('span', 'tag warn', 'مشكوك فيه'));
   h.append(mk('span', 'tag', 'غير مُتحقَّق'));
   box.appendChild(h);
@@ -300,12 +300,12 @@ function entryNode(e, only, hl) {
       const marks = new Map(); (r.dx || []).forEach(i => marks.set(i, S.color[r.id]));
       tx.appendChild(paint(r.x, marks)); row.appendChild(tx);
       const tags = mk('span', 'tags');
-      if (r.ap) tags.append(mk('span', 'tag warn', '≈ مقرَّبة من مصحف ' + nameOf(r.ap)));
+      if (r.n) tags.append(mk('span', 'tag', r.n));
       if (r.cond) tags.append(mk('span', 'tag', 'مقيَّد (وقفًا أو وصلًا أو في بعض الأحوال)'));
       if (r.khulf) tags.append(mk('span', 'tag', 'بخلافٍ عنه'));
       if (tags.childNodes.length) row.appendChild(tags);
     } else {
-      row.appendChild(mk('span', 'same', 'يخالف قالون — ولا كلمةَ لقراءته في المصدر، فراجع البيان'));
+      row.appendChild(mk('span', 'same', r.n ? 'يخالف قالون: ' + r.n : 'يخالف قالون (انظر البيان)'));
       const tags = mk('span', 'tags');
       if (r.cond) tags.append(mk('span', 'tag', 'مقيَّد'));
       if (r.khulf) tags.append(mk('span', 'tag', 'بخلافٍ عنه'));
@@ -314,7 +314,7 @@ function entryNode(e, only, hl) {
     box.appendChild(row);
   }
   for (const b of e.b) {
-    const bay = mk('div', 'bayan'); bay.append(mk('b', null, 'بيان القراءة (بلفظ المصدر)'), document.createTextNode(b));
+    const bay = mk('div', 'bayan'); bay.append(mk('b', null, 'بيان القراءة (بلفظ المصدر)'), document.createTextNode(b.startsWith('@') ? (S.rules[b.slice(1)] || '') : b));
     box.appendChild(bay);
   }
   return box;
@@ -344,7 +344,7 @@ function onWordR(span) {
   } else if (q) info.appendChild(mk('p', 'same', 'مقابل قالون في سورةٍ أخرى (رقم الكلمة ' + q + ').'));
   info.appendChild(mk('p', 'same', riw.mush
     ? 'هذا فرقُ نصّين بين مصحفين، لا حكمُ قراءة؛ ولا يُنسَب إلى قارئ إلا من البيان أدناه إن وُجد.'
-    : 'مصحفُ قالون وقد استُبدلت الكلمةُ بكلمة قراءته من المصدر (≈ إن قُرِّبت من مصحف راوٍ اتفق معه في الوجه).'));
+    : 'مصحفُ قالون وقد استُبدلت الكلمةُ بكلمة قراءته من المصدر.'));
   nodes.push(info);
   if (q) for (const { e } of S.cur.cover.get(q) || []) {
     if (e.r.some(r => r.id === S.riw)) nodes.push(entryNode(e, S.riw, S.riw));
@@ -355,6 +355,7 @@ function onWordR(span) {
 /* ---------- التهيئة ---------- */
 async function init() {
   S.meta = await getJSON('data/meta.json');
+  S.rules = await getJSON('data/rules.json').catch(() => ({}));
   const css = S.meta.fonts.map(r => '@font-face{font-family:"f-' + r.id + '";src:url("fonts/' + r.font + '");font-display:swap}').join('');
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
   const sel = $('sura');

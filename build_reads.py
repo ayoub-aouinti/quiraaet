@@ -68,7 +68,7 @@ def emit(n, items, stats):
             if rid in it['r']:
                 r = it['r'][rid]
                 d = {'id': rid}
-                for key in ('x', 'f', 'ap', 'same', 'cond', 'khulf'):
+                for key in ('x', 'f', 'ap', 'same', 'cond', 'khulf', 'n'):
                     if r.get(key):
                         d[key] = r[key]
                 if r.get('dq'):
@@ -179,6 +179,20 @@ def main():
                 if rid in E.get('k', []):
                     it['r'][rid]['khulf'] = True
 
+        # ٢-ب) الأصول المعمَّمة (ميم الجمع، الهمز الساكن، ضم الهاء، المدّ)
+        for u in jl('%s/usul/%d.json' % (DATA, n)):
+            it = item(u['s'], u['e'])
+            it['t'] = it['t'] or 'u'
+            for b in u['b']:
+                if b not in it['b']:
+                    it['b'].append(b)
+            for r in u['r']:
+                if r['id'] in it['r']:
+                    if r.get('n'):
+                        it['r'][r['id']].setdefault('n', r['n'])
+                    continue
+                it['r'][r['id']] = {k: v for k, v in r.items() if k != 'id'}
+
         # ٣) فرقُ المصحف لورش والبزي وقنبل حيث لا إدخال لهم
         covered = {rid: set() for rid in OWN_FIRST}
         for (s, e), it in items.items():
@@ -189,7 +203,7 @@ def main():
         for q in qseqs:
             for rid in OWN_FIRST:
                 t = mw[MUSH[rid]].get(q)
-                if t and t[1] != 0 and q not in covered[rid]:
+                if t and t[1] == 1 and q not in covered[rid]:   # الرسم المحض (2) لا يُعدّ خلافَ قراءة
                     dq, dx = letters(qall[q][0], t[0])
                     it = item(q, q)
                     it['t'] = it['t'] or 'm'
@@ -226,6 +240,29 @@ def main():
     for n in range(1, 115):
         emit(n, allitems[n], stats)
 
+    # فروق الرسم المحض (تصنيف 2) التي لا يسندها بيانٌ تُزال من مصاحف الروايات: لا علاقة لها بالقراءة
+    cov = {rid: set() for rid in MUSH}
+    for n in range(1, 115):
+        for (s_, e_), it in allitems[n].items():
+            for rid, r in it['r'].items():
+                if rid in MUSH and not r.get('same'):
+                    cov[rid].update(range(s_, e_ + 1))
+    dropped = 0
+    for rid, mid in MUSH.items():
+        for n in range(1, 115):
+            path = '%s/riw/%s/%d.json' % (DATA, mid, n)
+            d = jl(path)
+            ch = False
+            for ay in d['ayat']:
+                for w in ay[1]:
+                    if w[2] == 2 and w[1] not in cov[rid]:
+                        w[2] = 0
+                        del w[3:]
+                        ch = True
+                        dropped += 1
+            if ch:
+                dump(path, d)
+
     # قائمة الروايات: لمن لا مصحف له يُعرَض مصحفُ قالون معدَّلاً
     meta = jl(DATA + '/meta.json')
     have_m = {r['id']: r for r in meta.get('fonts_src', meta['riwayat'])}
@@ -244,7 +281,7 @@ def main():
     meta['riwayat'] = riw
     meta['fonts'] = [{'id': r['id'], 'font': r['font']} for r in have_m.values()]
     dump(DATA + '/meta.json', meta)
-    print('عناصر الخلاف الموحَّدة:', stats['items'], '| معمَّمة على نظائر:', added)
+    print('عناصر الخلاف الموحَّدة:', stats['items'], '| معمَّمة على نظائر:', added, '| فروق رسم محضٍ أُزيلت:', dropped)
 
 
 if __name__ == '__main__':

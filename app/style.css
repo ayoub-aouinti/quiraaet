@@ -110,6 +110,5 @@ select { background: var(--card); border: 1px solid var(--line); border-radius: 
 .rr { flex-wrap: wrap; }
 
 .rr.dim { opacity: .62; }
-.w.ap { text-decoration: underline dotted; text-underline-offset: .25em; }
 .w.nt { opacity: .9; }
 .tags { display: inline-flex; flex-wrap: wrap; gap: .3rem; }
