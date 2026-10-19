@@ -1,5 +1,5 @@
 'use strict';
-/* اقرأ — قالون ومقابلة القراءات. صفحة ثابتة؛ البيانات في data/ وخطوط المجمع في fonts/. */
+/* قراءات — مقابلة القراءات. صفحة ثابتة؛ البيانات في data/ وخطوط المجمع في fonts/. */
 
 const PALETTE = ['#d55e00', '#0072b2', '#009e73', '#cc79a7', '#e69f00', '#56b4e9', '#7a3e9d',
   '#b2182b', '#4d9221', '#8c6d31', '#1b7a8c', '#c51b8a', '#6a51a3', '#636363', '#1f9d8b', '#a65628',
@@ -9,14 +9,21 @@ const AR = '٠١٢٣٤٥٦٧٨٩';
 const arNum = n => String(n).replace(/\d/g, d => AR[d]);
 const $ = id => document.getElementById(id);
 
-const S = { meta: null, sura: 1, mode: 'q', riw: 'warsh', sel: new Set(), color: {}, cache: {}, cur: null, tok: 0 };
+const S = { meta: null, sura: 1, mode: 'q', riw: 'warsh', sel: new Set(), color: {}, cache: {}, cur: null, tok: 0, returnFocus: null };
 
 function store(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* التخزين قد يكون ممنوعاً */ } }
 function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 
 async function getJSON(path) {
   if (!S.cache[path]) {
-    S.cache[path] = fetch(path).then(r => { if (!r.ok) throw new Error(path + ' ' + r.status); return r.json(); });
+    S.cache[path] = fetch(path).then(r => {
+      if (!r.ok) throw new Error(path + ' (' + r.status + ')');
+      return r.json();
+    }).catch(err => {
+      // Une erreur réseau ne doit pas empêcher une nouvelle tentative.
+      delete S.cache[path];
+      throw err;
+    });
   }
   return S.cache[path];
 }
@@ -107,7 +114,35 @@ function buildPanel() {
   }
   syncChecks();
 }
-function syncChecks() { document.querySelectorAll('#groups input').forEach(c => { c.checked = S.sel.has(c.dataset.id); }); }
+function syncChecks() {
+  document.querySelectorAll('#groups input').forEach(c => { c.checked = S.sel.has(c.dataset.id); });
+  $('stat-selected').textContent = arNum(S.sel.size);
+}
+function updateStats(qd) {
+  const words = qd?.ayat?.reduce((n, [, ws]) => n + ws.length, 0) || 0;
+  $('stat-ayah').textContent = qd ? arNum(qd.ayat.length) : '—';
+  $('stat-word').textContent = words ? arNum(words) : '—';
+  $('stat-selected').textContent = arNum(S.sel.size);
+}
+function searchKey(value) {
+  return value.toLocaleLowerCase().normalize('NFKD').replace(/\p{M}/gu, '').trim();
+}
+function applySearch() {
+  const query = searchKey($('search')?.value || '');
+  let count = 0;
+  document.querySelectorAll('#text .w').forEach(w => {
+    const hit = !!query && searchKey(w.textContent).includes(query);
+    w.classList.toggle('search-hit', hit);
+    if (hit) count += 1;
+  });
+  $('search-count').textContent = query ? (count ? arNum(count) + ' نتيجة' : 'لا توجد نتائج') : '';
+}
+function setTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  const dark = theme === 'dark';
+  $('theme-toggle').textContent = dark ? '☀' : '☾';
+  $('theme-toggle').setAttribute('aria-label', dark ? 'تفعيل المظهر الفاتح' : 'تفعيل المظهر الداكن');
+}
 
 /* ---------- الحالة في الرابط ---------- */
 function writeHash() {
@@ -118,6 +153,9 @@ function writeHash() {
 function readHash() {
   const raw = location.hash.slice(1) || load('iqraa') || '';
   const p = new URLSearchParams(raw);
+  S.sel.clear();
+  S.mode = 'q';
+  S.riw = 'warsh';
   const s = +p.get('s'); if (s >= 1 && s <= 114) S.sura = s;
   S.open = +p.get('o') || 0;   // رقم كلمة قالون لفتح بيانها عند التحميل (للروابط)
   S.ns = p.get('ns') === '1';  // بلا تمرير إلى الكلمة (للفحص الآلي)
@@ -133,6 +171,7 @@ function changed() { writeHash(); render(); }
 async function render() {
   const token = ++S.tok;
   closeSheet();
+  $('reader').setAttribute('aria-busy', 'true');
   document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-selected', String((b.id === 'mode-q') === (S.mode === 'q'))));
   $('panel-q').hidden = S.mode !== 'q'; $('panel-r').hidden = S.mode !== 'r';
   $('sura').value = S.sura;
@@ -141,10 +180,12 @@ async function render() {
     const n = S.sura;
     const [qd, reads] = await Promise.all([getJSON('data/qalun/' + n + '.json'), getJSON('data/reads/' + n + '.json')]);
     const riw = riwOf(S.riw);
+    if (!riw) throw new Error('riwāya inconnue: ' + S.riw);
     let rd = null;
     if (S.mode === 'r' && riw.mush) rd = await getJSON('data/riw/' + riw.mush + '/' + n + '.json');
     if (token !== S.tok) return;
     S.cur = { qd, reads, rd, qtext: new Map(qd.ayat.flatMap(a => a[1])) };
+    updateStats(qd);
     // لكل كلمة: العناصر التي تغطّيها والإزاحة داخل العبارة
     const cover = new Map();
     for (const e of reads) {
@@ -157,6 +198,7 @@ async function render() {
     }
     S.cur.cover = cover;
     if (S.mode === 'q') renderQ(); else if (riw.mush) renderR(); else renderX();
+    applySearch();
     if (S.open) {
       const w = document.querySelector(S.mode === 'q' ? '.w[data-seq="' + S.open + '"]' : '.w[data-q="' + S.open + '"]');
       S.open = 0;
@@ -167,6 +209,8 @@ async function render() {
       : 'سورة ' + qd.name + ' — ' + (riw.mush ? 'مصحف ' + riw.name : 'مصحف قالون معدَّلًا بحسب خلاف ' + riw.name);
   } catch (e) {
     $('status').textContent = 'تعذَّر التحميل: ' + e.message;
+  } finally {
+    if (token === S.tok) $('reader').setAttribute('aria-busy', 'false');
   }
 }
 
@@ -185,7 +229,7 @@ function renderQ() {
   for (const [ayNo, words] of qd.ayat) {
     const ay = mk('span', 'ay');
     for (const [seq, text] of words) {
-      const w = mk('span', 'w'); w.dataset.seq = seq;
+      const w = mk('span', 'w'); w.tabIndex = 0; w.dataset.seq = seq;
       const marks = new Map(); const cols = [];
       for (const { e, off } of cover.get(seq) || []) {
         for (const r of e.r) {
@@ -216,7 +260,7 @@ function renderR() {
   for (const [ayNo, words] of rd.ayat) {
     const ay = mk('span', 'ay');
     for (const [text, q, k, d] of words) {
-      const w = mk('span', 'w' + (k ? ' k' + k : ''));
+      const w = mk('span', 'w' + (k ? ' k' + k : '')); w.tabIndex = 0;
       w.dataset.q = q; w.dataset.k = k; w.dataset.t = text; w.dataset.f = riw.mush;
       w.appendChild(d ? paintUnderline(text, new Set(d)) : document.createTextNode(text));
       ay.appendChild(w); ay.appendChild(document.createTextNode(' '));
@@ -246,7 +290,7 @@ function renderX() {
     const ay = mk('span', 'ay');
     for (const [seq, text] of words) {
       if (skip.has(seq)) continue;
-      const w = mk('span', 'w'); w.dataset.q = seq; w.dataset.f = 'qalun';
+      const w = mk('span', 'w'); w.tabIndex = 0; w.dataset.q = seq; w.dataset.f = 'qalun';
       const p = rep.get(seq);
       if (p) {
         w.classList.add('k1');
@@ -266,11 +310,18 @@ function renderX() {
 }
 
 /* ---------- نافذة بيان الخلاف ---------- */
-function closeSheet() { $('sheet').hidden = true; document.querySelectorAll('.w.sel').forEach(x => x.classList.remove('sel')); }
+function closeSheet() {
+  $('sheet').hidden = true;
+  document.querySelectorAll('.w.sel').forEach(x => x.classList.remove('sel'));
+  if (S.returnFocus?.isConnected) S.returnFocus.focus();
+  S.returnFocus = null;
+}
 function openSheet(titleText, titleFont, bodyNodes) {
   const t = $('sheet-title'); t.textContent = titleText; setFont(t, titleFont);
   const b = $('sheet-body'); b.textContent = ''; bodyNodes.forEach(n => b.appendChild(n));
   $('sheet').hidden = false;
+  S.returnFocus = document.activeElement;
+  $('sheet-close').focus();
 }
 
 // عنصرُ خلافٍ: رواةٌ بكلماتهم وحروفهم المخالفة، ثم البيان بلفظ المصدر
@@ -370,14 +421,28 @@ async function init() {
   $('all-off').onclick = () => { S.sel.clear(); syncChecks(); changed(); };
   $('sheet-close').onclick = closeSheet;
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+  $('search').oninput = applySearch;
+  const savedTheme = load('iqraa-theme');
+  setTheme(savedTheme === 'dark' || savedTheme === 'light' ? savedTheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+  $('theme-toggle').onclick = () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    setTheme(next); store('iqraa-theme', next);
+  };
   $('text').addEventListener('click', ev => {
     const w = ev.target.closest('.w'); if (!w) return;
     S.mode === 'q' ? onWordQ(w, ev) : onWordR(w);
+  });
+  $('text').addEventListener('keydown', ev => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    const w = ev.target.closest('.w'); if (!w) return;
+    ev.preventDefault();
+    S.mode === 'q' ? onWordQ(w, { target: w }) : onWordR(w);
   });
   const bump = d => { const cur = parseFloat(getComputedStyle($('text')).getPropertyValue('--fs')) || 2.1; const v = Math.max(1.2, Math.min(4, cur + d)); $('text').style.setProperty('--fs', v + 'rem'); store('iqraa-fs', v); };
   $('fs+').onclick = () => bump(.2); $('fs-').onclick = () => bump(-.2);
   const L = document.querySelector('.layout');
   $('toggle-panel').onclick = () => { const h = $('panel').hidden = !$('panel').hidden; L.classList.toggle('nopanel', h); $('toggle-panel').setAttribute('aria-expanded', String(!h)); };
+  window.addEventListener('hashchange', () => { readHash(); syncChecks(); render(); });
   render();
 }
 init().catch(e => { $('status').textContent = 'تعذَّر بدء التطبيق: ' + e.message; });

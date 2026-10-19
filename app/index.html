@@ -3,34 +3,56 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>اقرأ — قالون ومقابلة القراءات</title>
+<title>قراءات — مقابلة القراءات القرآنية</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="bar">
-  <h1>اقرأ <small>قالون ومقابلة القراءات</small></h1>
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 48 48" role="img" aria-label="شعار قراءات">
+        <path class="mark-page" d="M8 13.5c6.5-2.6 11.8-1.7 16 2.2v22.8c-4.2-3.5-9.5-4.3-16-1.6z"/>
+        <path class="mark-page" d="M40 13.5c-6.5-2.6-11.8-1.7-16 2.2v22.8c4.2-3.5 9.5-4.3 16-1.6z"/>
+        <path class="mark-line" d="M12.5 19.5c3.8-.8 7.1 0 10 2.2M12.5 25c3.5-.6 6.8.1 10 2.1M35.5 19.5c-3.8-.8-7.1 0-10 2.2M35.5 25c-3.5-.6-6.8.1-10 2.1"/>
+        <circle class="mark-dot" cx="24" cy="8.5" r="2.3"/>
+      </svg>
+    </div>
+    <h1>قراءات <small>مقابلة القراءات القرآنية</small></h1>
+  </div>
   <label class="sel"><span class="sr">السورة</span>
     <select id="sura" aria-label="السورة"></select>
   </label>
   <div class="seg" role="tablist" aria-label="وجه العرض">
-    <button id="mode-q" role="tab" aria-selected="true">قالون ومقابلة القراءات</button>
-    <button id="mode-r" role="tab" aria-selected="false">مصحف رواية</button>
+    <button type="button" id="mode-q" role="tab" aria-selected="true">قالون ومقابلة القراءات</button>
+    <button type="button" id="mode-r" role="tab" aria-selected="false">مصحف رواية</button>
   </div>
   <div class="sz" aria-label="حجم الخط">
-    <button id="fs-" aria-label="تصغير الخط">أ−</button>
-    <button id="fs+" aria-label="تكبير الخط">أ+</button>
+    <button type="button" id="fs-" aria-label="تصغير الخط">أ−</button>
+    <button type="button" id="fs+" aria-label="تكبير الخط">أ+</button>
   </div>
-  <button id="toggle-panel" class="panel-btn" aria-controls="panel" aria-expanded="true">القراءات</button>
+  <label class="search"><span class="sr">البحث في السورة</span><input id="search" type="search" placeholder="ابحث في السورة الحالية…" autocomplete="off"></label>
+  <button type="button" id="theme-toggle" class="icon-btn" aria-label="تبديل المظهر">☾</button>
+  <button type="button" id="toggle-panel" class="panel-btn" aria-controls="panel" aria-expanded="true">القراءات</button>
 </header>
 
 <div class="layout">
   <aside id="panel" class="panel" aria-label="اختيار القراءات">
+    <div class="panel-intro">
+      <span class="eyebrow">لوحة المقارنة</span>
+      <strong>اكتشف مواضع الاختلاف</strong>
+      <span class="panel-sub">اختر قارئًا أو أكثر، ثم اضغط على أي كلمة لعرض البيان.</span>
+    </div>
+    <div class="stats" aria-label="ملخص السورة">
+      <div><b id="stat-ayah">—</b><span>آية</span></div>
+      <div><b id="stat-word">—</b><span>كلمة</span></div>
+      <div><b id="stat-selected">٠</b><span>رواة</span></div>
+    </div>
     <section id="panel-q">
       <p class="hint">اختر الرواة الذين تريد مقابلتهم بقالون؛ تُلوَّن الكلمات والحروف التي يخالفون فيها.</p>
       <div id="groups"></div>
       <div class="row">
-        <button id="all-on" class="lnk">تحديد الكل</button>
-        <button id="all-off" class="lnk">إلغاء الكل</button>
+        <button type="button" id="all-on" class="lnk">تحديد الكل</button>
+        <button type="button" id="all-off" class="lnk">إلغاء الكل</button>
       </div>
     </section>
     <section id="panel-r" hidden>
@@ -48,9 +70,11 @@
       فهي <b>غير مُتحقَّق منها</b>. العلامة ≈ تعني أن موضع الخلاف رُبط بكلمة قالون
       بتقريب (اختلاف عدّ الآي أو الضبط).
     </p>
+    <p class="source-note">المصدر النصي: مجمع الملك فهد لطباعة المصحف الشريف</p>
   </aside>
 
   <main id="reader" class="reader" aria-live="polite">
+    <div class="reader-head"><span class="eyebrow">النص القرآني</span><span id="search-count" class="search-count" aria-live="polite"></span></div>
     <div id="status" class="status">جارٍ التحميل…</div>
     <div id="text" class="text"></div>
   </main>
@@ -59,7 +83,7 @@
 <div id="sheet" class="sheet" role="dialog" aria-modal="false" aria-labelledby="sheet-title" hidden>
   <div class="sheet-head">
     <h2 id="sheet-title"></h2>
-    <button id="sheet-close" aria-label="إغلاق">×</button>
+    <button type="button" id="sheet-close" aria-label="إغلاق">×</button>
   </div>
   <div id="sheet-body" class="sheet-body"></div>
 </div>
