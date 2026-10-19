@@ -2,15 +2,14 @@
 /* اقرأ — قالون ومقابلة القراءات. صفحة ثابتة؛ البيانات في data/ وخطوط المجمع في fonts/. */
 
 const PALETTE = ['#d55e00', '#0072b2', '#009e73', '#cc79a7', '#e69f00', '#56b4e9', '#7a3e9d',
-  '#b2182b', '#4d9221', '#8c6d31', '#1b7a8c', '#c51b8a', '#6a51a3', '#636363'];
-// مصحف الرواية ← القارئ المقابل له في ملفات الخلاف (لعرض بيانه عند الضغط)
-const RIW_READER = { shuba: 'asim:شعبة', hafs: 'asim:حفص', duri: 'abu_amr:الدوري', susi: 'abu_amr:السوسي' };
+  '#b2182b', '#4d9221', '#8c6d31', '#1b7a8c', '#c51b8a', '#6a51a3', '#636363', '#1f9d8b', '#a65628',
+  '#377eb8', '#984ea3', '#999999'];
 const KIND = { 1: 'ضبط مخالف (حركات أو همزات) — مرشَّح للمراجعة', 2: 'رسم مخالف', 3: 'كلمة لا مقابل لها في قالون' };
 const AR = '٠١٢٣٤٥٦٧٨٩';
 const arNum = n => String(n).replace(/\d/g, d => AR[d]);
 const $ = id => document.getElementById(id);
 
-const S = { meta: null, sura: 1, mode: 'q', riw: 'warsh', sel: new Set(), color: {}, fs: 0, cache: {}, cur: null };
+const S = { meta: null, sura: 1, mode: 'q', riw: 'warsh', sel: new Set(), color: {}, cache: {}, cur: null, tok: 0 };
 
 function store(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* التخزين قد يكون ممنوعاً */ } }
 function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -21,11 +20,13 @@ async function getJSON(path) {
   }
   return S.cache[path];
 }
+function mk(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function setFont(el, id) { el.style.fontFamily = '"f-' + id + '", serif'; }
 
 /* ---------- الحروف: تقسيم الكلمة إلى حرفٍ وعلاماته، وتلوين بعضها ---------- */
 function clusters(text) {
-  const out = []; let i = 0;
-  for (const m of text.matchAll(/[^\p{M}]\p{M}*|\p{M}+/gu)) { out.push([m.index, m[0]]); i++; }
+  const out = [];
+  for (const m of text.matchAll(/[^\p{M}]\p{M}*|\p{M}+/gu)) out.push([m.index, m[0]]);
   return out;
 }
 const REV = {};   // لون ← معرّف القارئ، ليُعرَف أيّ قارئٍ لُوِّن حرفُه عند الضغط
@@ -39,7 +40,7 @@ function paint(text, marks) {          // marks: Map(index -> color)
     for (let k = 0; k < str.length; k++) if (marks.has(idx + k)) { col = marks.get(idx + k); break; }
     if (col) {
       flush();
-      const el = document.createElement('i'); el.textContent = str; el.style.color = col;
+      const el = mk('i', null, str); el.style.color = col;
       if (REV[col]) el.dataset.r = REV[col];
       frag.appendChild(el);
     } else run += str;
@@ -47,40 +48,62 @@ function paint(text, marks) {          // marks: Map(index -> color)
   flush();
   return frag;
 }
+// في مصحف الرواية الحرفُ المخالف يُبرَز بخطٍّ سفلي
+function paintUnderline(text, set) {
+  const frag = document.createDocumentFragment(); let run = '';
+  const flush = () => { if (run) { frag.appendChild(document.createTextNode(run)); run = ''; } };
+  for (const [idx, str] of clusters(text)) {
+    let hit = false;
+    for (let k = 0; k < str.length; k++) if (set.has(idx + k)) hit = true;
+    if (hit) { flush(); const el = mk('i', null, str); el.style.textDecoration = 'underline'; el.style.textDecorationThickness = '.08em'; frag.appendChild(el); }
+    else run += str;
+  }
+  flush();
+  return frag;
+}
+
+/* ---------- أسماء الرواة ---------- */
+function nameOf(id) {
+  for (const g of S.meta.groups) for (const r of g.readers) if (r.id === id) {
+    const w = g.name.split(' ');    // «ابن كثير» و«أبو عمرو» كلمتان؛ وسائرها كلمة
+    return r.name + ' (' + (w[0] === 'ابن' || w[0] === 'أبو' ? w[0] + ' ' + w[1] : w[0]) + ')';
+  }
+  return id;
+}
+const riwOf = id => S.meta.riwayat.find(r => r.reader === id);
 
 /* ---------- بناء اللوحة ---------- */
 function buildPanel() {
   const g = $('groups'); g.textContent = '';
   let ci = 0;
   for (const grp of S.meta.groups) {
-    const box = document.createElement('div'); box.className = 'grp';
-    const h = document.createElement('h3'); h.textContent = 'قراءة ' + grp.name;
-    const b = document.createElement('button'); b.className = 'lnk'; b.textContent = 'الكل';
-    b.onclick = () => { const all = grp.readers.every(r => S.sel.has(r.id)); grp.readers.forEach(r => all ? S.sel.delete(r.id) : S.sel.add(r.id)); syncChecks(); changed(); };
+    const box = mk('div', 'grp');
+    const h = mk('h3', null, 'قراءة ' + grp.name);
+    const b = mk('button', 'lnk', 'الكل');
+    b.onclick = () => {
+      const rs = grp.readers.filter(r => r.id !== 'qalun');
+      const all = rs.every(r => S.sel.has(r.id)); rs.forEach(r => all ? S.sel.delete(r.id) : S.sel.add(r.id)); syncChecks(); changed();
+    };
     h.appendChild(b); box.appendChild(h);
     for (const r of grp.readers) {
-      if (r.id === 'qalun') {    // المرجع: لا يُقابَل بنفسه
-        const ref = document.createElement('div'); ref.className = 'rd ref'; ref.textContent = r.name + ' — المرجع';
-        box.appendChild(ref); continue;
-      }
+      if (r.id === 'qalun') { box.appendChild(mk('div', 'rd ref', r.name + ' — المرجع')); continue; }
       S.color[r.id] = PALETTE[ci++ % PALETTE.length]; REV[S.color[r.id]] = r.id;
-      const l = document.createElement('label'); l.className = 'rd';
+      const l = mk('label', 'rd');
       const cb = document.createElement('input'); cb.type = 'checkbox'; cb.dataset.id = r.id;
       cb.onchange = () => { cb.checked ? S.sel.add(r.id) : S.sel.delete(r.id); changed(); };
-      const chip = document.createElement('span'); chip.className = 'chip'; chip.style.background = S.color[r.id];
-      const t = document.createElement('span'); t.textContent = r.name;
-      l.append(cb, chip, t); box.appendChild(l);
+      const chip = mk('span', 'chip'); chip.style.background = S.color[r.id];
+      l.append(cb, chip, mk('span', null, r.name)); box.appendChild(l);
     }
     g.appendChild(box);
   }
   const rl = $('riw-list'); rl.textContent = '';
   for (const r of S.meta.riwayat) {
-    if (r.ref) continue;
-    const l = document.createElement('label'); l.className = 'rd';
-    const rb = document.createElement('input'); rb.type = 'radio'; rb.name = 'riw'; rb.value = r.id; rb.checked = r.id === S.riw;
-    rb.onchange = () => { S.riw = r.id; changed(); };
-    const t = document.createElement('span'); t.textContent = 'مصحف ' + r.name;
-    l.append(rb, t); rl.appendChild(l);
+    if (r.reader === 'qalun') continue;
+    const l = mk('label', 'rd');
+    const rb = document.createElement('input'); rb.type = 'radio'; rb.name = 'riw'; rb.value = r.reader; rb.checked = r.reader === S.riw;
+    rb.onchange = () => { S.riw = r.reader; changed(); };
+    l.append(rb, mk('span', null, (r.mush ? 'مصحف ' : 'قالون معدَّلًا: ') + r.name));
+    rl.appendChild(l);
   }
   syncChecks();
 }
@@ -99,11 +122,11 @@ function readHash() {
   S.open = +p.get('o') || 0;   // رقم كلمة قالون لفتح بيانها عند التحميل (للروابط)
   S.ns = p.get('ns') === '1';  // بلا تمرير إلى الكلمة (للفحص الآلي)
   if (p.get('m') === 'r') S.mode = 'r';
-  if (p.get('w') && S.meta.riwayat.some(r => r.id === p.get('w') && !r.ref)) S.riw = p.get('w');
+  const w = p.get('w');
+  if (w && S.meta.riwayat.some(r => r.reader === w && w !== 'qalun')) S.riw = w;
   const known = new Set(S.meta.groups.flatMap(g => g.readers.map(r => r.id)));
-  (p.get('r') || '').split('|').filter(x => known.has(x)).forEach(x => S.sel.add(x));
+  (p.get('r') || '').split('|').filter(x => known.has(x) && x !== 'qalun').forEach(x => S.sel.add(x));
 }
-
 function changed() { writeHash(); render(); }
 
 /* ---------- العرض ---------- */
@@ -116,70 +139,60 @@ async function render() {
   $('status').textContent = 'جارٍ التحميل…';
   try {
     const n = S.sura;
-    const [qd, kh, bd] = await Promise.all([getJSON('data/qalun/' + n + '.json'), getJSON('data/khilaf/' + n + '.json'),
-      getJSON('data/badur/' + n + '.json').catch(() => [])]);
+    const [qd, reads] = await Promise.all([getJSON('data/qalun/' + n + '.json'), getJSON('data/reads/' + n + '.json')]);
+    const riw = riwOf(S.riw);
     let rd = null;
-    if (S.mode === 'r') rd = await getJSON('data/riw/' + S.riw + '/' + n + '.json');
+    if (S.mode === 'r' && riw.mush) rd = await getJSON('data/riw/' + riw.mush + '/' + n + '.json');
     if (token !== S.tok) return;
-    S.cur = { qd, kh, bd, rd, qtext: new Map(qd.ayat.flatMap(a => a[1])) };
-    if (S.mode === 'q') renderQ(); else renderR();
+    S.cur = { qd, reads, rd, qtext: new Map(qd.ayat.flatMap(a => a[1])) };
+    // لكل كلمة: العناصر التي تغطّيها والإزاحة داخل العبارة
+    const cover = new Map();
+    for (const e of reads) {
+      let off = 0;
+      for (let s = e.s; s <= e.e; s++) {
+        if (!cover.has(s)) cover.set(s, []);
+        cover.get(s).push({ e, off });
+        off += (S.cur.qtext.get(s) || '').length + 1;
+      }
+    }
+    S.cur.cover = cover;
+    if (S.mode === 'q') renderQ(); else if (riw.mush) renderR(); else renderX();
     if (S.open) {
-      const w = S.mode === 'q' ? document.querySelector('.w[data-seq="' + S.open + '"]') : document.querySelector('.w[data-q="' + S.open + '"]');
+      const w = document.querySelector(S.mode === 'q' ? '.w[data-seq="' + S.open + '"]' : '.w[data-q="' + S.open + '"]');
       S.open = 0;
       if (w) { S.mode === 'q' ? onWordQ(w, { target: w }) : onWordR(w); if (!S.ns) w.scrollIntoView({ block: 'center' }); }
     }
     $('status').textContent = S.mode === 'q'
       ? 'سورة ' + qd.name + ' — ' + arNum(qd.ayat.length) + ' آية، برواية قالون عن نافع'
-      : 'سورة ' + qd.name + ' — مصحف ' + S.meta.riwayat.find(r => r.id === S.riw).name;
+      : 'سورة ' + qd.name + ' — ' + (riw.mush ? 'مصحف ' + riw.name : 'مصحف قالون معدَّلًا بحسب خلاف ' + riw.name);
   } catch (e) {
     $('status').textContent = 'تعذَّر التحميل: ' + e.message;
   }
 }
 
-function setFont(el, id) { el.style.fontFamily = '"f-' + id + '", serif'; }
-
-function basmala(rid) {
-  const r = S.meta.riwayat.find(x => x.id === rid);
+function basmala(id) {
+  const r = S.meta.riwayat.find(x => x.id === id);
   if (S.sura === 1 || S.sura === 9 || !r || !r.bsm) return null;
-  const d = document.createElement('div'); d.className = 'bsm'; d.textContent = r.bsm; setFont(d, rid);
+  const d = mk('div', 'bsm', r.bsm); setFont(d, id);
   return d;
 }
+function ayahMark(ay, n) { ay.appendChild(mk('span', 'an', arNum(n))); ay.appendChild(document.createTextNode(' ')); }
 
 function renderQ() {
-  const { qd, kh } = S.cur;
+  const { qd, cover } = S.cur;
   const box = $('text'); box.textContent = ''; setFont(box, 'qalun');
   const b = basmala('qalun'); if (b) box.appendChild(b);
-  // لكل كلمة: الإدخالات التي تغطّيها والإزاحة داخل العبارة
-  const cover = new Map();
-  for (const e of kh) {
-    let off = 0;
-    for (let s = e.s; s <= e.e; s++) {
-      const t = S.cur.qtext.get(s) || '';
-      if (!cover.has(s)) cover.set(s, []);
-      cover.get(s).push({ e, off });
-      off += t.length + 1;
-    }
-  }
-  S.cur.cover = cover;
-  const bcover = new Map();     // مداخل «البدور» لكل كلمة
-  for (const e of S.cur.bd || []) for (let s = e.s; s <= e.e; s++) { if (!bcover.has(s)) bcover.set(s, []); bcover.get(s).push(e); }
-  S.cur.bcover = bcover;
   for (const [ayNo, words] of qd.ayat) {
-    const ay = document.createElement('span'); ay.className = 'ay';
+    const ay = mk('span', 'ay');
     for (const [seq, text] of words) {
-      const w = document.createElement('span'); w.className = 'w'; w.dataset.seq = seq;
+      const w = mk('span', 'w'); w.dataset.seq = seq;
       const marks = new Map(); const cols = [];
-      for (const e of bcover.get(seq) || []) {
-        for (const rid of S.sel) {
-          if (e.a.some(a => differs(a, rid))) { const c = S.color[rid]; if (!cols.includes(c)) cols.push(c); }
-        }
-      }
       for (const { e, off } of cover.get(seq) || []) {
         for (const r of e.r) {
           if (!S.sel.has(r.id) || r.same) continue;
           const c = S.color[r.id];
           if (!cols.includes(c)) cols.push(c);
-          for (const i of r.dq) { const k = i - off; if (k >= 0 && k < text.length && !marks.has(k)) marks.set(k, c); }
+          for (const i of r.dq || []) { const k = i - off; if (k >= 0 && k < text.length && !marks.has(k)) marks.set(k, c); }
         }
       }
       if (cols.length) {
@@ -190,44 +203,66 @@ function renderQ() {
       w.appendChild(paint(text, marks));
       ay.appendChild(w); ay.appendChild(document.createTextNode(' '));
     }
-    const an = document.createElement('span'); an.className = 'an'; an.textContent = arNum(ayNo);
-    ay.appendChild(an); ay.appendChild(document.createTextNode(' '));
+    ayahMark(ay, ayNo);
     box.appendChild(ay);
   }
 }
 
+// مصحف الرواية: نصُّه كما في ملف المجمع، وما يخالف قالون ملوَّن
 function renderR() {
-  const { rd } = S.cur;
-  const box = $('text'); box.textContent = ''; setFont(box, S.riw);
-  const b = basmala(S.riw); if (b) box.appendChild(b);
+  const { rd } = S.cur; const riw = riwOf(S.riw);
+  const box = $('text'); box.textContent = ''; setFont(box, riw.mush);
+  const b = basmala(riw.id); if (b) box.appendChild(b);
   for (const [ayNo, words] of rd.ayat) {
-    const ay = document.createElement('span'); ay.className = 'ay';
-    for (const wd of words) {
-      const [text, q, k, d] = wd;
-      const w = document.createElement('span'); w.className = 'w' + (k ? ' k' + k : '');
-      w.dataset.q = q; w.dataset.k = k; w.dataset.t = text;
-      const marks = new Map();
-      if (d) d.forEach(i => marks.set(i, 'currentColor'));
+    const ay = mk('span', 'ay');
+    for (const [text, q, k, d] of words) {
+      const w = mk('span', 'w' + (k ? ' k' + k : ''));
+      w.dataset.q = q; w.dataset.k = k; w.dataset.t = text; w.dataset.f = riw.mush;
       w.appendChild(d ? paintUnderline(text, new Set(d)) : document.createTextNode(text));
       ay.appendChild(w); ay.appendChild(document.createTextNode(' '));
     }
-    const an = document.createElement('span'); an.className = 'an'; an.textContent = arNum(ayNo);
-    ay.appendChild(an); ay.appendChild(document.createTextNode(' '));
+    ayahMark(ay, ayNo);
     box.appendChild(ay);
   }
 }
-// في مصحف الرواية الكلمةُ كلُّها ملوَّنة بلون فرقها، والحرف المخالف يُبرَز بتغميقٍ وخط سفلي
-function paintUnderline(text, set) {
-  const frag = document.createDocumentFragment(); let run = '';
-  const flush = () => { if (run) { frag.appendChild(document.createTextNode(run)); run = ''; } };
-  for (const [idx, str] of clusters(text)) {
-    let hit = false;
-    for (let k = 0; k < str.length; k++) if (set.has(idx + k)) hit = true;
-    if (hit) { flush(); const el = document.createElement('i'); el.textContent = str; el.style.textDecoration = 'underline'; el.style.textDecorationThickness = '.08em'; frag.appendChild(el); }
-    else run += str;
+
+// لمن لا مصحف له: مصحف قالون وقد استُبدلت كلمةُ كل موضعِ خلافٍ بكلمة قراءته (≈ حيث قُرِّبت)
+function renderX() {
+  const { qd, reads } = S.cur; const rid = S.riw; const riw = riwOf(rid);
+  const rep = new Map(), skip = new Set(), mark = new Set();
+  for (const e of reads) {
+    const r = e.r.find(x => x.id === rid);
+    if (!r || r.same) continue;
+    if (e.s !== e.e && [...Array(e.e - e.s + 1).keys()].some(i => rep.has(e.s + i) || skip.has(e.s + i))) continue;
+    if (rep.has(e.s) || mark.has(e.s)) continue;
+    if (r.x) {
+      rep.set(e.s, { r, e });
+      for (let s = e.s + 1; s <= e.e; s++) skip.add(s);
+    } else for (let s = e.s; s <= e.e; s++) mark.add(s);
   }
-  flush();
-  return frag;
+  const box = $('text'); box.textContent = ''; setFont(box, 'qalun');
+  const b = basmala('qalun'); if (b) box.appendChild(b);
+  for (const [ayNo, words] of qd.ayat) {
+    const ay = mk('span', 'ay');
+    for (const [seq, text] of words) {
+      if (skip.has(seq)) continue;
+      const w = mk('span', 'w'); w.dataset.q = seq; w.dataset.f = 'qalun';
+      const p = rep.get(seq);
+      if (p) {
+        w.classList.add('k1'); if (p.r.ap) w.classList.add('ap');
+        w.dataset.k = 1; w.dataset.t = p.r.x; w.dataset.f = p.r.f || 'hafs';
+        setFont(w, w.dataset.f);
+        w.appendChild(p.r.dx ? paintUnderline(p.r.x, new Set(p.r.dx)) : document.createTextNode(p.r.x));
+      } else {
+        w.dataset.k = mark.has(seq) ? 1 : 0; w.dataset.t = text;
+        if (mark.has(seq)) w.classList.add('k1', 'nt');
+        w.appendChild(document.createTextNode(text));
+      }
+      ay.appendChild(w); ay.appendChild(document.createTextNode(' '));
+    }
+    ayahMark(ay, ayNo);
+    box.appendChild(ay);
+  }
 }
 
 /* ---------- نافذة بيان الخلاف ---------- */
@@ -237,85 +272,51 @@ function openSheet(titleText, titleFont, bodyNodes) {
   const b = $('sheet-body'); b.textContent = ''; bodyNodes.forEach(n => b.appendChild(n));
   $('sheet').hidden = false;
 }
-function mk(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 
-/* ---------- «البدور الزاهرة»: مجموعات الرواة في كل مدخل ---------- */
-function allIds() { return S.meta.groups.flatMap(g => g.readers.map(r => r.id)); }
-function nameOf(id) {
-  for (const g of S.meta.groups) for (const r of g.readers) if (r.id === id) {
-    const w = g.name.split(' ');    // «ابن كثير» و«أبو عمرو» كلمتان؛ وسائرها كلمة
-    return r.name + ' (' + (w[0] === 'ابن' || w[0] === 'أبو' ? w[0] + ' ' + w[1] : w[0]) + ')';
-  }
-  return id;
-}
-// رقم مجموعة الراوي في الجانب: مجموعته المسمّاة، وإلا مجموعة «الباقين»، وإلا -1
-function gidx(a, rid) {
-  for (let i = 0; i < a.g.length; i++) if (a.g[i].r && a.g[i].r.includes(rid)) return i;
-  for (let i = 0; i < a.g.length; i++) if (a.g[i].rest) return i;
-  return -1;
-}
-// يخالف قالون: مجموعتُه غير مجموعة قالون، وكلتاهما معروفة
-function differs(a, rid) { const g = gidx(a, rid); return a.q >= 0 && g >= 0 && g !== a.q; }
-
-function badurNode(e) {
-  const box = mk('div', 'ent');
-  const h = mk('h4'); h.append(mk('span', null, 'القراءات العشر — البدور الزاهرة'));
-  h.append(mk('span', 'tag', 'الوسم غير مُتحقَّق'));
-  if (e.u) h.append(mk('span', 'tag warn', 'مشكوك في وسمه'));
-  box.appendChild(h);
-  const ids = allIds();
-  e.a.forEach((a, ai) => {
-    if (e.a.length > 1) box.appendChild(mk('div', 'same', 'الجانب ' + arNum(ai + 1)));
-    const named = new Set(a.g.flatMap(g => g.r || []));
-    a.g.forEach((g, gi) => {
-      const row = mk('div', 'rr' + (gi === a.q ? ' hl' : ''));
-      const who = g.rest ? ids.filter(x => !named.has(x)) : g.r;
-      const nm = mk('span', 'nm'); nm.append(mk('span', null, g.rest ? 'الباقون' : 'مجموعة'));
-      row.appendChild(nm);
-      const chips = mk('span', 'chips');
-      for (const id of who) {
-        const c = mk('span', 'rchip' + (S.sel.has(id) ? ' on' : '') + ((g.cond || []).includes(id) ? ' cond' : ''), nameOf(id));
-        if (S.color[id]) c.style.borderColor = S.color[id];
-        chips.appendChild(c);
-      }
-      row.appendChild(chips);
-      if (gi === a.q) row.appendChild(mk('span', 'same', '← مع قالون'));
-      if (g.snip) row.appendChild(mk('div', 'snip', g.snip));
-      box.appendChild(row);
-    });
-    if (a.q < 0) box.appendChild(mk('p', 'same', 'لم يتبيَّن من المدخل وجهُ قالون في هذا الجانب، فلا يُلوَّن.'));
-  });
-  if (e.k && e.k.length) box.appendChild(mk('p', 'same', 'بخلافٍ عنه: ' + e.k.map(nameOf).join('، ')));
-  const bay = mk('div', 'bayan'); bay.append(mk('b', null, 'نصّ الكتاب'), document.createTextNode(e.t));
-  box.appendChild(bay);
-  return box;
-}
-
-function entryNode(e, off, text, hl) {
-  const box = mk('div', 'ent' + (e.r.some(r => S.sel.has(r.id)) ? '' : ' off'));
-  const h = mk('h4'); h.append(mk('span', null, 'قراءة ' + (S.meta.groups.find(g => g.id === e.g) || {}).name));
+// عنصرُ خلافٍ: رواةٌ بكلماتهم وحروفهم المخالفة، ثم البيان بلفظ المصدر
+function entryNode(e, only, hl) {
+  const rs = only ? e.r.filter(r => r.id === only) : e.r;
+  const box = mk('div', 'ent' + (rs.some(r => S.sel.has(r.id)) ? '' : ' off'));
+  const h = mk('h4'); h.append(mk('span', null, e.e > e.s ? 'خلاف في عبارة' : 'خلاف'));
   if (e.t === 'shifted') h.append(mk('span', 'tag warn', '≈ رُبط بآية مجاورة (اختلاف العدّ)'));
   else if (e.t === 'rasm') h.append(mk('span', 'tag warn', '≈ مطابقة بالرسم'));
+  else if (e.t === 'm') h.append(mk('span', 'tag', 'فرق في المصحف'));
+  else if (e.t === 'p') h.append(mk('span', 'tag warn', '≈ نظيرٌ لموضعٍ نصَّ عليه المصدر، عُمِّم بمصحف راوٍ اتفق معه في الوجه'));
+  if (e.u) h.append(mk('span', 'tag warn', 'مشكوك فيه'));
   h.append(mk('span', 'tag', 'غير مُتحقَّق'));
   box.appendChild(h);
   if (e.e > e.s) {
-    const ph = mk('div', 'same', 'العبارة: ' + [...Array(e.e - e.s + 1).keys()].map(i => S.cur.qtext.get(e.s + i)).join(' '));
+    const ph = mk('div', 'same', [...Array(e.e - e.s + 1).keys()].map(i => S.cur.qtext.get(e.s + i)).join(' '));
     setFont(ph, 'qalun'); ph.style.fontSize = '1.4rem'; box.appendChild(ph);
   }
-  for (const r of e.r) {
-    const row = mk('div', 'rr' + (hl === r.id ? ' hl' : ''));
+  const order = rs.slice().sort((a, b) => (S.sel.has(b.id) ? 1 : 0) - (S.sel.has(a.id) ? 1 : 0));
+  for (const r of order) {
+    const row = mk('div', 'rr' + (hl === r.id ? ' hl' : '') + (S.sel.has(r.id) ? '' : ' dim'));
     const nm = mk('span', 'nm'); const chip = mk('span', 'chip'); chip.style.background = S.color[r.id];
-    nm.append(chip, mk('span', null, r.n)); row.appendChild(nm);
+    nm.append(chip, mk('span', null, nameOf(r.id))); row.appendChild(nm);
     if (r.same) row.appendChild(mk('span', 'same', 'كقالون'));
-    else {
-      const tx = mk('span', 'tx'); setFont(tx, 'hafs');
-      const marks = new Map(); r.dx.forEach(i => marks.set(i, S.color[r.id]));
+    else if (r.x) {
+      const tx = mk('span', 'tx'); setFont(tx, r.f || 'hafs');
+      const marks = new Map(); (r.dx || []).forEach(i => marks.set(i, S.color[r.id]));
       tx.appendChild(paint(r.x, marks)); row.appendChild(tx);
+      const tags = mk('span', 'tags');
+      if (r.ap) tags.append(mk('span', 'tag warn', '≈ مقرَّبة من مصحف ' + nameOf(r.ap)));
+      if (r.cond) tags.append(mk('span', 'tag', 'مقيَّد (وقفًا أو وصلًا أو في بعض الأحوال)'));
+      if (r.khulf) tags.append(mk('span', 'tag', 'بخلافٍ عنه'));
+      if (tags.childNodes.length) row.appendChild(tags);
+    } else {
+      row.appendChild(mk('span', 'same', 'يخالف قالون — ولا كلمةَ لقراءته في المصدر، فراجع البيان'));
+      const tags = mk('span', 'tags');
+      if (r.cond) tags.append(mk('span', 'tag', 'مقيَّد'));
+      if (r.khulf) tags.append(mk('span', 'tag', 'بخلافٍ عنه'));
+      if (tags.childNodes.length) row.appendChild(tags);
     }
     box.appendChild(row);
   }
-  const bay = mk('div', 'bayan'); bay.append(mk('b', null, 'بيان القراءة (بلفظ الملف)'), document.createTextNode(e.b));
-  box.appendChild(bay);
+  for (const b of e.b) {
+    const bay = mk('div', 'bayan'); bay.append(mk('b', null, 'بيان القراءة (بلفظ المصدر)'), document.createTextNode(b));
+    box.appendChild(bay);
+  }
   return box;
 }
 
@@ -323,49 +324,38 @@ function onWordQ(span, ev) {
   const seq = +span.dataset.seq;
   const hl = ev.target.dataset && ev.target.dataset.r;
   document.querySelectorAll('.w.sel').forEach(x => x.classList.remove('sel')); span.classList.add('sel');
-  const ents = (S.cur.cover.get(seq) || []);
-  const text = S.cur.qtext.get(seq);
-  const sorted = ents.slice().sort((a, b) => b.e.r.filter(r => S.sel.has(r.id)).length - a.e.r.filter(r => S.sel.has(r.id)).length);
-  const nodes = sorted.map(({ e, off }) => entryNode(e, off, text, hl));
-  for (const e of (S.cur.bcover.get(seq) || [])) nodes.push(badurNode(e));
+  const ents = (S.cur.cover.get(seq) || []).map(c => c.e);
+  const score = e => e.r.filter(r => S.sel.has(r.id)).length;
+  const nodes = ents.slice().sort((a, b) => score(b) - score(a)).map(e => entryNode(e, null, hl));
   if (!nodes.length) nodes.push(mk('p', 'empty', 'لا خلاف مسجَّل لهذه الكلمة في المصادر المتوفرة. وخلوّ الموضع من خلافٍ ليس نفياً له؛ قد يكون نقصاً في المصدر.'));
-  openSheet(text, 'qalun', nodes);
+  openSheet(S.cur.qtext.get(seq), 'qalun', nodes);
 }
 
 function onWordR(span) {
-  const k = +span.dataset.k, q = +span.dataset.q, text = span.dataset.t;
+  const k = +span.dataset.k, q = +span.dataset.q, text = span.dataset.t, f = span.dataset.f;
   document.querySelectorAll('.w.sel').forEach(x => x.classList.remove('sel')); span.classList.add('sel');
+  const riw = riwOf(S.riw);
   const nodes = [];
   const info = mk('div', 'ent');
-  info.append(mk('h4', null, k ? KIND[k] : 'مطابقة لقالون'));
+  info.append(mk('h4', null, k ? KIND[k] || 'يخالف قالون' : 'مطابقة لقالون'));
   if (q && S.cur.qtext.has(q)) {
     const row = mk('div', 'rr'); row.append(mk('span', 'nm', 'قالون'));
     const tx = mk('span', 'tx', S.cur.qtext.get(q)); setFont(tx, 'qalun'); row.appendChild(tx); info.appendChild(row);
   } else if (q) info.appendChild(mk('p', 'same', 'مقابل قالون في سورةٍ أخرى (رقم الكلمة ' + q + ').'));
-  info.appendChild(mk('p', 'same', 'هذا فرقُ نصّين بين مصحفين، لا حكمُ قراءة؛ ولا يُنسَب إلى قارئ إلا من بيان الخلاف أدناه إن وُجد.'));
+  info.appendChild(mk('p', 'same', riw.mush
+    ? 'هذا فرقُ نصّين بين مصحفين، لا حكمُ قراءة؛ ولا يُنسَب إلى قارئ إلا من البيان أدناه إن وُجد.'
+    : 'مصحفُ قالون وقد استُبدلت الكلمةُ بكلمة قراءته من المصدر (≈ إن قُرِّبت من مصحف راوٍ اتفق معه في الوجه).'));
   nodes.push(info);
-  const rid = RIW_READER[S.riw];
-  if (rid && q) {
-    for (const { e, off } of (S.cur.cover || coverFor()).get(q) || []) {
-      if (e.r.some(r => r.id === rid)) nodes.push(entryNode({ ...e, r: e.r.filter(r => r.id === rid) }, off, text, rid));
-    }
+  if (q) for (const { e } of S.cur.cover.get(q) || []) {
+    if (e.r.some(r => r.id === S.riw)) nodes.push(entryNode(e, S.riw, S.riw));
   }
-  openSheet(text, S.riw, nodes);
-}
-function coverFor() {
-  const cover = new Map();
-  for (const e of S.cur.kh) for (let s = e.s, off = 0; s <= e.e; s++) {
-    if (!cover.has(s)) cover.set(s, []);
-    cover.get(s).push({ e, off }); off += (S.cur.qtext.get(s) || '').length + 1;
-  }
-  S.cur.cover = cover; return cover;
+  openSheet(text, f || riw.mush || 'qalun', nodes);
 }
 
 /* ---------- التهيئة ---------- */
 async function init() {
-  S.tok = 0;
   S.meta = await getJSON('data/meta.json');
-  const css = S.meta.riwayat.map(r => '@font-face{font-family:"f-' + r.id + '";src:url("fonts/' + r.font + '");font-display:swap}').join('');
+  const css = S.meta.fonts.map(r => '@font-face{font-family:"f-' + r.id + '";src:url("fonts/' + r.font + '");font-display:swap}').join('');
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
   const sel = $('sura');
   S.meta.suras.forEach(s => { const o = document.createElement('option'); o.value = s.n; o.textContent = arNum(s.n) + ' — ' + s.name; sel.appendChild(o); });
@@ -374,7 +364,7 @@ async function init() {
   sel.onchange = () => { S.sura = +sel.value; window.scrollTo(0, 0); changed(); };
   $('mode-q').onclick = () => { S.mode = 'q'; changed(); };
   $('mode-r').onclick = () => { S.mode = 'r'; changed(); };
-  $('all-on').onclick = () => { S.meta.groups.forEach(g => g.readers.forEach(r => S.sel.add(r.id))); syncChecks(); changed(); };
+  $('all-on').onclick = () => { S.meta.groups.forEach(g => g.readers.forEach(r => r.id !== 'qalun' && S.sel.add(r.id))); syncChecks(); changed(); };
   $('all-off').onclick = () => { S.sel.clear(); syncChecks(); changed(); };
   $('sheet-close').onclick = closeSheet;
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
