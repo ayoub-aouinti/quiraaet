@@ -1,33 +1,3 @@
-__pycache__/
-*.pyc
-.venv/
-venv/
-
-# موادُّ مصدرٍ ثقيلة، تُنقَل عند الحاجة
-books/
-ocr/
-riw/
-bundle/
-data/
-
-# مَخرَجاتٌ تُبنى من القاعدة
-out/*.xlsx
-out/*.docx
-*.tar.gz
-
-# نسخُ القاعدة الاحتياطية — ٤٠ ميغا لكلِّ واحدة
-out/waqf.db.bak*
-
-# Node — الواجهة البرمجية والويب والجوال
 node_modules/
 dist/
-.expo/
-*.tsbuildinfo
-.env
-.env.local
-apps/mobile/ios/
-apps/mobile/android/
-
-# # خطوطُ المصاحف: ملفّاتُ المستخدم، رخصتُها لم تُراجَع للتوزيع
-# apps/web/public/fonts/*
-# !apps/web/public/fonts/README.txt
+__pycache__/

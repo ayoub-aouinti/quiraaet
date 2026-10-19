@@ -14,9 +14,22 @@
 حركاته غير موثوقة، فيُكتفى فيه بفرق الرسم. أما الدوري وحفص فبيونيكود فيُقارَن
 ضبطهما. ولا يُنسَب فرقٌ إلى قارئ بعينه هنا: هذا فرقُ نصٍّ لا حكمُ قراءة.
 """
-import json, sqlite3, sys, unicodedata
+import json, re, sqlite3, sys, unicodedata
 from difflib import SequenceMatcher
-from normalize import norm
+from normalize import norm as _norm
+
+# اصطلاحات الخط المغربي في قالون والدوري: ے ياء، ۓ ياء بهمزة، وتنوينٌ بعلامات مقلوبة.
+# هذه ترميزٌ للخط لا قراءة، فتُوحَّد قبل المقارنة حتى لا يُحسَب الاصطلاحُ فرقاً.
+PRE = {'ے': 'ى', 'ۓ': 'ئ', 'ٖ': 'ٍ', 'ٗ': 'ٌ',
+       'ٞ': 'ً'}
+
+
+def pre(w):
+    return ''.join(PRE.get(c, c) for c in w)
+
+
+def norm(w):
+    return _norm(pre(w))
 
 SKIP = {'warsh'}  # الضبط بترميز الخط: فرق الرسم فقط
 VOW = set('ًٌٍَُِ')   # فتحة ضمة كسرة وتنوينات
@@ -25,13 +38,30 @@ MAP = {'ٱ': 'ا', 'أ': 'ا', 'إ': 'ا', 'آ': 'ا',
        'ی': 'ي'}
 
 
+# ضبط «أل» اصطلاحٌ طباعي: حفص يكتب فتحةً على الألف الوصلية وعلى لام مشدَّدة (ٱلَّذِينَ)
+# وقالون يتركهما. هذا ترميزُ إدغام لا قراءة، فيُسقَط قبل المقارنة.
+_MARK = '[ً-ِْٓ-ٰٕۖ-ۭ]*'
+_ART = re.compile('^(%s[وفبكل]?%s)([اٱ]%s)(ل)(%sّ?%s)' % (
+    _MARK, '[ً-ِ]?', _MARK, _MARK, '[َُِ]?'))
+
+
+def _article(w):
+    m = _ART.match(w)
+    if not m:
+        return w
+    shadda = 'ّ' if 'ّ' in m.group(4) else ''
+    return m.group(1) + 'ال' + shadda + w[m.end():]
+
+
 def vcanon(w):
     """الحروف والحركات القصيرة فقط؛ تُسقَط الشدّة والسكون والألف الخنجرية وعلامات الوقف."""
-    w = unicodedata.normalize('NFC', w)
+    w = _article(pre(unicodedata.normalize('NFC', w)))
+    # تنوين الفتح قبل الألف أو بعدها ترتيبُ رسمٍ لا فرق: يُوحَّد (الألف بعده)
+    w = re.sub('ا([ً-ٍ])', r'\1ا', w)
     out = []
     for ch in w:
         ch = MAP.get(ch, ch)
-        if ch in VOW or 'ء' <= ch <= 'ي':
+        if ch in VOW or ('ء' <= ch <= 'ي' and ch != 'ـ'):
             out.append(ch)
     return ''.join(out)
 
