@@ -83,7 +83,9 @@ def main():
                 for i, g in enumerate(gs):
                     if g.get('rest'):
                         q = i
-            asps.append({'g': gs, 'q': q})
+            # من ورد فيهم «بخلفٍ عنه» في هذا الجانب: يُحسَم بنصّ المصحف عند البناء (build_reads)
+            akh = sorted({x for x in (a.get('khulf') or []) + (r.get('khulf') or []) if x in ALL})
+            asps.append({'g': gs, 'q': q, **({'kh': akh} if akh else {})})
         if not asps:
             st['فرش بلا جوانب'] += 1
             continue

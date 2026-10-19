@@ -14,7 +14,7 @@
 في قالون إن أظهر مصحفُ الزميل في ذلك الموضع التغييرَ عينَه (وسمُ t = p، وفيه ≈).
 """
 import json, os, re
-from canon import diff_idx
+from canon import diff_idx, canon
 from normalize import norm
 
 DATA = 'app/data'
@@ -34,6 +34,10 @@ RNAME = {'hisham': 'هشام عن ابن عامر', 'ibn_dhakwan': 'ابن ذك�
 def skel(w):
     t = norm(w)
     return t[:1] + re.sub('[اويى]', '', t[1:]) if t else ''
+
+
+def cstr(w):
+    return ''.join(c for c, _ in canon(w))
 
 
 def jl(p):
@@ -138,9 +142,22 @@ def main():
             s, e = E['s'], E['e']
             it = item(s, e)
             it['u'] = it['u'] or E['u']
-            if E['t'] not in it['b']:
-                it['b'].append(E['t'])
             ph = phrase(s, e)
+
+            def qeff(a):
+                """مرجعُ قالون في الجانب. إن كان «بخلفٍ عنه» وكان نصُّه في المصحف يخالف كلمةَ زميلٍ في مجموعته
+                المنصوصة فوجهُه الأول هو وجهُ «الباقين» (كصلة ميم الجمع)، والمنصوصُ ثانيه؛ وإلا بقي كما نُصّ."""
+                q = a['q']
+                if q >= 0 and 'qalun' in a.get('kh', []):
+                    rest_i = next((i for i, gg in enumerate(a['g']) if gg.get('rest')), -1)
+                    if rest_i >= 0 and rest_i != q:
+                        for m in a['g'][q].get('r', []):
+                            mid = MUSH.get(m)
+                            parts = [mw[mid].get(x) for x in range(s, e + 1)] if mid else None
+                            if parts and all(parts):
+                                return (rest_i, q) if cstr(' '.join(p_[0] for p_ in parts)) != cstr(ph) else (q, -1)
+                return q, -1
+
             q0 = re.match(r'^"\s*([^"]*?)\s*"', E['t'])
             okq = False
             if q0 and s == e:
@@ -153,14 +170,27 @@ def main():
                 rest = E['t'][q0.end():]
                 nq = rest.find('"')
                 portion = re.sub(r'\s+', ' ', rest if nq < 0 else rest[:nq])
+            # فقراتُ الكتاب تلصق عدّة مداخل مقتبسة: يُقتصَر على ما قبل أول اقتباسٍ تالٍ بياناً وجوانب
+            bay, own = E['t'], None
+            if q0:
+                rest0 = E['t'][q0.end():]
+                nq0 = rest0.find('"')
+                seg = rest0 if nq0 < 0 else rest0[:nq0]
+                own = re.sub(r'\s+', ' ', seg)
+                bay = (E['t'][:q0.end()] + seg).strip()
+            if bay not in it['b']:
+                it['b'].append(bay)
+            AS = [a for a in E['a']
+                  if own is None or not [g['snip'] for g in a['g'] if g.get('snip')]
+                  or any(re.sub(r'\s+', ' ', g['snip']) in own for g in a['g'] if g.get('snip'))]
             for rid in ALL:
                 if rid == 'qalun':
                     continue
-                diff_aspects = [a for a in E['a'] if a['q'] >= 0 and gidx(a, rid) >= 0 and gidx(a, rid) != a['q']]
+                diff_aspects = [a for a in AS if qeff(a)[0] >= 0 and gidx(a, rid) >= 0 and gidx(a, rid) != qeff(a)[0]]
                 if not diff_aspects:
                     continue
                 rec = it['r'].get(rid)
-                cond = any(rid in gg.get('cond', []) for a in E['a'] for gg in a['g'])
+                cond = any(rid in gg.get('cond', []) for a in AS for gg in a['g'])
                 snip = a0 = None
                 a0 = diff_aspects[0]
                 snip = a0['g'][gidx(a0, rid)].get('snip')
@@ -208,6 +238,17 @@ def main():
                     it['r'][rid]['cond'] = True
                 if rid in E.get('k', []):
                     it['r'][rid]['khulf'] = True
+
+            # وجهُ قالون الثاني: يُعرَض بجانب من قرؤوا به (لا يُلوَّن: هو المرجع)
+            for a in AS:
+                qe, q2 = qeff(a)
+                if q2 >= 0:
+                    for m in a['g'][q2].get('r', []):
+                        rr = it['r'].get(m)
+                        if m != 'qalun' and rr and rr.get('x'):
+                            it['r']['qalun'] = {'x': rr['x'], 'f': rr.get('f'), 'dq': rr.get('dq', []),
+                                                'dx': rr.get('dx', []), 'n': 'وجهه الثاني', 'khulf': True}
+                            break
 
         for r in ha.get(n, []):
             _, s0, e0, tier0, _ = r['links'][0]

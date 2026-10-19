@@ -289,10 +289,11 @@ function entryNode(e, only, hl) {
     const ph = mk('div', 'same', [...Array(e.e - e.s + 1).keys()].map(i => S.cur.qtext.get(e.s + i)).join(' '));
     setFont(ph, 'qalun'); ph.style.fontSize = '1.4rem'; box.appendChild(ph);
   }
-  const order = rs.slice().sort((a, b) => (S.sel.has(b.id) ? 1 : 0) - (S.sel.has(a.id) ? 1 : 0));
+  const rank = r => (r.id === 'qalun' ? 2 : S.sel.has(r.id) ? 1 : 0);
+  const order = rs.slice().sort((a, b) => rank(b) - rank(a));
   for (const r of order) {
-    const row = mk('div', 'rr' + (hl === r.id ? ' hl' : '') + (S.sel.has(r.id) ? '' : ' dim'));
-    const nm = mk('span', 'nm'); const chip = mk('span', 'chip'); chip.style.background = S.color[r.id];
+    const row = mk('div', 'rr' + (hl === r.id ? ' hl' : '') + (S.sel.has(r.id) || r.id === 'qalun' ? '' : ' dim'));
+    const nm = mk('span', 'nm'); const chip = mk('span', 'chip'); chip.style.background = S.color[r.id] || 'var(--muted)';
     nm.append(chip, mk('span', null, nameOf(r.id))); row.appendChild(nm);
     if (r.same) row.appendChild(mk('span', 'same', 'كقالون'));
     else if (r.x) {
