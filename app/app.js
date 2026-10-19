@@ -59,6 +59,10 @@ function buildPanel() {
     b.onclick = () => { const all = grp.readers.every(r => S.sel.has(r.id)); grp.readers.forEach(r => all ? S.sel.delete(r.id) : S.sel.add(r.id)); syncChecks(); changed(); };
     h.appendChild(b); box.appendChild(h);
     for (const r of grp.readers) {
+      if (r.id === 'qalun') {    // المرجع: لا يُقابَل بنفسه
+        const ref = document.createElement('div'); ref.className = 'rd ref'; ref.textContent = r.name + ' — المرجع';
+        box.appendChild(ref); continue;
+      }
       S.color[r.id] = PALETTE[ci++ % PALETTE.length]; REV[S.color[r.id]] = r.id;
       const l = document.createElement('label'); l.className = 'rd';
       const cb = document.createElement('input'); cb.type = 'checkbox'; cb.dataset.id = r.id;
@@ -93,6 +97,7 @@ function readHash() {
   const p = new URLSearchParams(raw);
   const s = +p.get('s'); if (s >= 1 && s <= 114) S.sura = s;
   S.open = +p.get('o') || 0;   // رقم كلمة قالون لفتح بيانها عند التحميل (للروابط)
+  S.ns = p.get('ns') === '1';  // بلا تمرير إلى الكلمة (للفحص الآلي)
   if (p.get('m') === 'r') S.mode = 'r';
   if (p.get('w') && S.meta.riwayat.some(r => r.id === p.get('w') && !r.ref)) S.riw = p.get('w');
   const known = new Set(S.meta.groups.flatMap(g => g.readers.map(r => r.id)));
@@ -111,16 +116,17 @@ async function render() {
   $('status').textContent = 'جارٍ التحميل…';
   try {
     const n = S.sura;
-    const [qd, kh] = await Promise.all([getJSON('data/qalun/' + n + '.json'), getJSON('data/khilaf/' + n + '.json')]);
+    const [qd, kh, bd] = await Promise.all([getJSON('data/qalun/' + n + '.json'), getJSON('data/khilaf/' + n + '.json'),
+      getJSON('data/badur/' + n + '.json').catch(() => [])]);
     let rd = null;
     if (S.mode === 'r') rd = await getJSON('data/riw/' + S.riw + '/' + n + '.json');
     if (token !== S.tok) return;
-    S.cur = { qd, kh, rd, qtext: new Map(qd.ayat.flatMap(a => a[1])) };
+    S.cur = { qd, kh, bd, rd, qtext: new Map(qd.ayat.flatMap(a => a[1])) };
     if (S.mode === 'q') renderQ(); else renderR();
     if (S.open) {
       const w = S.mode === 'q' ? document.querySelector('.w[data-seq="' + S.open + '"]') : document.querySelector('.w[data-q="' + S.open + '"]');
       S.open = 0;
-      if (w) { S.mode === 'q' ? onWordQ(w, { target: w }) : onWordR(w); w.scrollIntoView({ block: 'center' }); }
+      if (w) { S.mode === 'q' ? onWordQ(w, { target: w }) : onWordR(w); if (!S.ns) w.scrollIntoView({ block: 'center' }); }
     }
     $('status').textContent = S.mode === 'q'
       ? 'سورة ' + qd.name + ' — ' + arNum(qd.ayat.length) + ' آية، برواية قالون عن نافع'
@@ -155,11 +161,19 @@ function renderQ() {
     }
   }
   S.cur.cover = cover;
+  const bcover = new Map();     // مداخل «البدور» لكل كلمة
+  for (const e of S.cur.bd || []) for (let s = e.s; s <= e.e; s++) { if (!bcover.has(s)) bcover.set(s, []); bcover.get(s).push(e); }
+  S.cur.bcover = bcover;
   for (const [ayNo, words] of qd.ayat) {
     const ay = document.createElement('span'); ay.className = 'ay';
     for (const [seq, text] of words) {
       const w = document.createElement('span'); w.className = 'w'; w.dataset.seq = seq;
       const marks = new Map(); const cols = [];
+      for (const e of bcover.get(seq) || []) {
+        for (const rid of S.sel) {
+          if (e.a.some(a => differs(a, rid))) { const c = S.color[rid]; if (!cols.includes(c)) cols.push(c); }
+        }
+      }
       for (const { e, off } of cover.get(seq) || []) {
         for (const r of e.r) {
           if (!S.sel.has(r.id) || r.same) continue;
@@ -225,6 +239,58 @@ function openSheet(titleText, titleFont, bodyNodes) {
 }
 function mk(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 
+/* ---------- «البدور الزاهرة»: مجموعات الرواة في كل مدخل ---------- */
+function allIds() { return S.meta.groups.flatMap(g => g.readers.map(r => r.id)); }
+function nameOf(id) {
+  for (const g of S.meta.groups) for (const r of g.readers) if (r.id === id) {
+    const w = g.name.split(' ');    // «ابن كثير» و«أبو عمرو» كلمتان؛ وسائرها كلمة
+    return r.name + ' (' + (w[0] === 'ابن' || w[0] === 'أبو' ? w[0] + ' ' + w[1] : w[0]) + ')';
+  }
+  return id;
+}
+// رقم مجموعة الراوي في الجانب: مجموعته المسمّاة، وإلا مجموعة «الباقين»، وإلا -1
+function gidx(a, rid) {
+  for (let i = 0; i < a.g.length; i++) if (a.g[i].r && a.g[i].r.includes(rid)) return i;
+  for (let i = 0; i < a.g.length; i++) if (a.g[i].rest) return i;
+  return -1;
+}
+// يخالف قالون: مجموعتُه غير مجموعة قالون، وكلتاهما معروفة
+function differs(a, rid) { const g = gidx(a, rid); return a.q >= 0 && g >= 0 && g !== a.q; }
+
+function badurNode(e) {
+  const box = mk('div', 'ent');
+  const h = mk('h4'); h.append(mk('span', null, 'القراءات العشر — البدور الزاهرة'));
+  h.append(mk('span', 'tag', 'الوسم غير مُتحقَّق'));
+  if (e.u) h.append(mk('span', 'tag warn', 'مشكوك في وسمه'));
+  box.appendChild(h);
+  const ids = allIds();
+  e.a.forEach((a, ai) => {
+    if (e.a.length > 1) box.appendChild(mk('div', 'same', 'الجانب ' + arNum(ai + 1)));
+    const named = new Set(a.g.flatMap(g => g.r || []));
+    a.g.forEach((g, gi) => {
+      const row = mk('div', 'rr' + (gi === a.q ? ' hl' : ''));
+      const who = g.rest ? ids.filter(x => !named.has(x)) : g.r;
+      const nm = mk('span', 'nm'); nm.append(mk('span', null, g.rest ? 'الباقون' : 'مجموعة'));
+      row.appendChild(nm);
+      const chips = mk('span', 'chips');
+      for (const id of who) {
+        const c = mk('span', 'rchip' + (S.sel.has(id) ? ' on' : '') + ((g.cond || []).includes(id) ? ' cond' : ''), nameOf(id));
+        if (S.color[id]) c.style.borderColor = S.color[id];
+        chips.appendChild(c);
+      }
+      row.appendChild(chips);
+      if (gi === a.q) row.appendChild(mk('span', 'same', '← مع قالون'));
+      if (g.snip) row.appendChild(mk('div', 'snip', g.snip));
+      box.appendChild(row);
+    });
+    if (a.q < 0) box.appendChild(mk('p', 'same', 'لم يتبيَّن من المدخل وجهُ قالون في هذا الجانب، فلا يُلوَّن.'));
+  });
+  if (e.k && e.k.length) box.appendChild(mk('p', 'same', 'بخلافٍ عنه: ' + e.k.map(nameOf).join('، ')));
+  const bay = mk('div', 'bayan'); bay.append(mk('b', null, 'نصّ الكتاب'), document.createTextNode(e.t));
+  box.appendChild(bay);
+  return box;
+}
+
 function entryNode(e, off, text, hl) {
   const box = mk('div', 'ent' + (e.r.some(r => S.sel.has(r.id)) ? '' : ' off'));
   const h = mk('h4'); h.append(mk('span', null, 'قراءة ' + (S.meta.groups.find(g => g.id === e.g) || {}).name));
@@ -261,7 +327,8 @@ function onWordQ(span, ev) {
   const text = S.cur.qtext.get(seq);
   const sorted = ents.slice().sort((a, b) => b.e.r.filter(r => S.sel.has(r.id)).length - a.e.r.filter(r => S.sel.has(r.id)).length);
   const nodes = sorted.map(({ e, off }) => entryNode(e, off, text, hl));
-  if (!nodes.length) nodes.push(mk('p', 'empty', 'لا خلاف مسجَّل لهذه الكلمة في ملفات الخلاف المتوفرة. وخلوّ الموضع من خلافٍ ليس نفياً له؛ قد يكون نقصاً في المصدر.'));
+  for (const e of (S.cur.bcover.get(seq) || [])) nodes.push(badurNode(e));
+  if (!nodes.length) nodes.push(mk('p', 'empty', 'لا خلاف مسجَّل لهذه الكلمة في المصادر المتوفرة. وخلوّ الموضع من خلافٍ ليس نفياً له؛ قد يكون نقصاً في المصدر.'));
   openSheet(text, 'qalun', nodes);
 }
 

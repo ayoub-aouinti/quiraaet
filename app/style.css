@@ -100,3 +100,11 @@ select { background: var(--card); border: 1px solid var(--line); border-radius: 
   .text { --fs: 1.7rem; }
   .bar h1 small { display: none; }
 }
+
+.rd.ref { color: var(--muted); padding-inline-start: 1.6rem; }
+.chips { display: inline-flex; flex-wrap: wrap; gap: .3rem; }
+.rchip { font-size: .85rem; border: 2px solid var(--line); border-radius: 1rem; padding: 0 .55rem; background: var(--card); }
+.rchip.on { background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
+.rchip.cond { border-style: dashed; }
+.snip { flex-basis: 100%; color: var(--muted); font-size: .9rem; line-height: 1.8; }
+.rr { flex-wrap: wrap; }

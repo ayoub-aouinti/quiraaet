@@ -27,6 +27,30 @@ RIW = {
     'qunbul': ('قنبل عن ابن كثير',   'qunbul'),
 }
 # ملف الخلاف ← مجموعة القراء. المكرَّر والجزئي يُتجاهَل (انظر الأسباب في README).
+# القراء العشرة وروايتاهم (عشرون راوياً). معرّفات الراوي واحدةٌ في كل ما يُخرجه التطبيق.
+QARI = [
+    ('nafi', 'نافع المدني', [('qalun', 'قالون'), ('warsh', 'ورش')]),
+    ('ibn_kathir', 'ابن كثير المكي', [('bazzi', 'البزي'), ('qunbul', 'قنبل')]),
+    ('abu_amr', 'أبو عمرو البصري', [('duri_a', 'الدوري'), ('susi', 'السوسي')]),
+    ('ibn_amir', 'ابن عامر الشامي', [('hisham', 'هشام'), ('ibn_dhakwan', 'ابن ذكوان')]),
+    ('asim', 'عاصم الكوفي', [('shuba', 'شعبة'), ('hafs', 'حفص')]),
+    ('hamza', 'حمزة الكوفي', [('khalaf_h', 'خلف'), ('khallad', 'خلّاد')]),
+    ('kisai', 'الكسائي الكوفي', [('abu_harith', 'أبو الحارث'), ('duri_k', 'الدوري')]),
+    ('abu_jafar', 'أبو جعفر المدني', [('ibn_wardan', 'ابن وردان'), ('ibn_jammaz', 'ابن جمّاز')]),
+    ('yaqub', 'يعقوب الحضرمي', [('ruways', 'رويس'), ('rawh', 'روح')]),
+    ('khalaf10', 'خلف العاشر', [('ishaq', 'إسحاق'), ('idris', 'إدريس')]),
+]
+RNAME = {i: m for _, _, rs_ in QARI for i, m in rs_}
+# معرّفات ملفات الخلاف القديمة (المجموعة:الاسم) ← الرواة العشرون
+OLD_IDS = {
+    'asim:شعبة': ['shuba'], 'asim:حفص': ['hafs'],
+    'abu_amr:الدوري': ['duri_a'], 'abu_amr:السوسي': ['susi'],
+    'kisai:أبو الحارث': ['abu_harith'], 'kisai:الدوري': ['duri_k'],
+    'hamza:خلف': ['khalaf_h'], 'hamza:خلّاد': ['khallad'],
+    'ibn_amir:هشام': ['hisham'], 'ibn_amir:ابن ذكوان': ['ibn_dhakwan'],
+    'yaqub:رويس': ['ruways'], 'yaqub:روح': ['rawh'],
+    'khalaf10:خلف العاشر': ['ishaq', 'idris'],
+}
 GROUPS = [
     ('عاصم', 'كامل', 'asim', 'عاصم'),
     ('أبي عمرو', 'كامل', 'abu_amr', 'أبو عمرو البصري'),
@@ -162,8 +186,6 @@ def main(only=None):
             rs = []
             for name, txt in r['readings'].items():
                 name = name or gname      # عمودٌ بلا اسمٍ في الملف (خلف العاشر): يُسمّى باسم القراءة
-                rid = '%s:%s' % (gid, name)
-                groups.setdefault(gid, {'id': gid, 'name': gname, 'readers': {}})['readers'][rid] = name
                 same = is_same_by_bayan(name, r['bayan'])
                 dq, dx = ([], [])
                 if not same:
@@ -171,7 +193,9 @@ def main(only=None):
                     # فرقٌ يعمّ أكثر الكلمة معناه اختلافُ ترميز لا تمييز حروف: لا تلوين حرفي
                     if len(dq) > 0.6 * max(1, len(phrase.replace(' ', ''))):
                         dq, dx = [], []
-                rs.append({'id': rid, 'n': name, 'x': txt, 'same': same, 'dq': dq, 'dx': dx})
+                # توحيد المعرّفات على الرواة العشرين (عمود خلف العاشر في الملف يشمل إسحاق وإدريس معاً)
+                for new in OLD_IDS.get('%s:%s' % (gid, name), []):
+                    rs.append({'id': new, 'n': RNAME[new], 'x': txt, 'same': same, 'dq': dq, 'dx': dx})
             sura = r['sura']
             per.setdefault(sura, []).append({'s': s, 'e': e, 'g': gid, 't': tier, 'r': rs, 'b': r['bayan'],
                                              'a': req})
@@ -187,8 +211,7 @@ def main(only=None):
         'suras': [{'n': i + 1, 'name': names[i], 'ayat': ayat_count[i]} for i in range(114)],
         'riwayat': [{'id': rid, 'name': RIW[rid][0], 'font': fonts[rid], 'ref': rid == 'qalun',
                      'bsm': basmala(sorted(glob.glob('sources/mushafs/%s/*.doc' % RIW[rid][1]))[0])} for rid in RIW],
-        'groups': [{'id': g['id'], 'name': g['name'],
-                    'readers': [{'id': k, 'name': v} for k, v in g['readers'].items()]} for g in groups.values()],
+        'groups': [{'id': g, 'name': n, 'readers': [{'id': i, 'name': m} for i, m in rs_]} for g, n, rs_ in QARI],
         'stats': {k: {str(a): b for a, b in v.items()} for k, v in stats.items()} or old_stats,
     }
     dump(OUT + '/data/meta.json', meta)
