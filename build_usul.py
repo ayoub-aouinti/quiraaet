@@ -146,7 +146,8 @@ def main():
                 if muttasil:
                     what.append('مدٌّ متصل %d حركات' % k)
                 if munfasil:
-                    what.append('مدٌّ منفصل %d حركات' % k)
+                    # المنفصل عند عاصم (شعبة وحفص) أربع حركات (المذهب الثاني): تصحيحٌ من صاحب المشروع
+                    what.append('مدٌّ منفصل %d حركات' % (4 if rid in ('shuba', 'hafs') else k))
                 recs[rid] = {'n': ' و'.join(what)}
             if muttasil:
                 st['muttasil'] += 1

@@ -281,7 +281,7 @@ function entryNode(e, only, hl) {
   if (e.t === 'shifted') h.append(mk('span', 'tag warn', '≈ رُبط بآية مجاورة (اختلاف العدّ)'));
   else if (e.t === 'rasm') h.append(mk('span', 'tag warn', '≈ مطابقة بالرسم'));
   else if (e.t === 'm') h.append(mk('span', 'tag', 'فرق في المصحف'));
-  else if (e.t === 'u') h.append(mk('span', 'tag', 'أصلٌ عامّ معمَّم على مواضعه'));
+  else if (e.t === 'u' || e.t === 'w') h.append(mk('span', 'tag', 'أصلٌ عامّ معمَّم على مواضعه'));
   if (e.u) h.append(mk('span', 'tag warn', 'مشكوك فيه'));
   h.append(mk('span', 'tag', 'غير مُتحقَّق'));
   box.appendChild(h);

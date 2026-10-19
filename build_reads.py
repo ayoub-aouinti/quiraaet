@@ -13,8 +13,9 @@
 التعميم: ما أُخذ تقريباً من مصحف زميلٍ ولم يكن مقيَّداً ولا بخلف يُعمَّم على كل موضعٍ فيه الكلمةُ نفسُها
 في قالون إن أظهر مصحفُ الزميل في ذلك الموضع التغييرَ عينَه (وسمُ t = p، وفيه ≈).
 """
-import json, os
+import json, os, re
 from canon import diff_idx
+from normalize import norm
 
 DATA = 'app/data'
 ALL = ['qalun', 'warsh', 'bazzi', 'qunbul', 'duri_a', 'susi', 'hisham', 'ibn_dhakwan', 'shuba', 'hafs',
@@ -28,6 +29,11 @@ RNAME = {'hisham': 'هشام عن ابن عامر', 'ibn_dhakwan': 'ابن ذك�
          'ibn_wardan': 'ابن وردان عن أبي جعفر', 'ibn_jammaz': 'ابن جمّاز عن أبي جعفر',
          'ruways': 'رويس عن يعقوب', 'rawh': 'روح عن يعقوب', 'ishaq': 'إسحاق عن خلف العاشر',
          'idris': 'إدريس عن خلف العاشر'}
+
+
+def skel(w):
+    t = norm(w)
+    return t[:1] + re.sub('[اويى]', '', t[1:]) if t else ''
 
 
 def jl(p):
@@ -98,6 +104,11 @@ def main():
             for s, t in ws:
                 qall[s] = (t, n)
 
+    # مواضع إمالة هاء التأنيث وقفاً (الكسائي): ملفٌّ مستقلٌّ من ملفات الخلاف
+    ha = {}
+    for r in json.load(open('out/khilaf_linked.json', encoding='utf-8'))['linked']:
+        if 'مواضع إمالة هاء التأنيث' in r['file'] and r['links']:
+            ha.setdefault(r['sura'], []).append(r)
     allitems, prop = {}, {}
     for n in range(1, 115):
         qseqs = sorted(s for s, (t, nn) in qall.items() if nn == n)
@@ -115,9 +126,11 @@ def main():
             it['t'] = it['t'] or e['t']
             if e['b'] not in it['b']:
                 it['b'].append(e['b'])
+            if e['t'] in ('exact', 'rasm'):
+                it.setdefault('db', []).append(e['b'])
             for r in e['r']:
                 it['r'][r['id']] = {'x': None if r['same'] else r['x'], 'f': 'hafs', 'same': bool(r['same']),
-                                    'dq': r['dq'], 'dx': r['dx']}
+                                    'dq': r['dq'], 'dx': r['dx'], 'src': 'd'}
         docs = {k: dict(v['r']) for k, v in items.items()}
 
         # ٢) المداخل المسنَدة إلى كتب القراءات: من يخالف قالون في كل جانب
@@ -128,6 +141,18 @@ def main():
             if E['t'] not in it['b']:
                 it['b'].append(E['t'])
             ph = phrase(s, e)
+            q0 = re.match(r'^"\s*([^"]*?)\s*"', E['t'])
+            okq = False
+            if q0 and s == e:
+                toks = [x for x in re.split('[،,؛]', q0.group(1))[0].split() if x != 'معا']
+                a_, b_ = norm(toks[0]) if toks else '', norm(qall[s][0])
+                okq = (len(toks) == 1 and skel(toks[0]) == skel(qall[s][0]) and a_[:1] == b_[:1]
+                       and a_[-1:] == b_[-1:])
+                if re.search('آخر الربع|آخر السورة|الممال|المدغم|الكبير|الصغير', E['t']):
+                    okq = False                    # قوائم مجمَّعة: بيانُها لكلماتٍ شتّى لا للكلمة المقتبسة
+                rest = E['t'][q0.end():]
+                nq = rest.find('"')
+                portion = re.sub(r'\s+', ' ', rest if nq < 0 else rest[:nq])
             for rid in ALL:
                 if rid == 'qalun':
                     continue
@@ -136,6 +161,9 @@ def main():
                     continue
                 rec = it['r'].get(rid)
                 cond = any(rid in gg.get('cond', []) for a in E['a'] for gg in a['g'])
+                snip = a0 = None
+                a0 = diff_aspects[0]
+                snip = a0['g'][gidx(a0, rid)].get('snip')
                 if not (rec and (rec['x'] or rec['same'])):
                     rec = {'x': None, 'f': None}
                     a = diff_aspects[0]
@@ -174,10 +202,22 @@ def main():
                     if rec['x']:
                         rec['dq'], rec['dx'] = letters(ph, rec['x'])
                     it['r'][rid] = rec
+                if snip and okq and re.sub(r'\s+', ' ', snip) in portion:
+                    it['r'][rid].setdefault('sn', snip)
                 if cond:
                     it['r'][rid]['cond'] = True
                 if rid in E.get('k', []):
                     it['r'][rid]['khulf'] = True
+
+        for r in ha.get(n, []):
+            _, s0, e0, tier0, _ = r['links'][0]
+            it = item(s0, e0)
+            it['t'] = it['t'] or tier0
+            for rid in ('abu_harith', 'duri_k'):
+                if rid not in it['r']:
+                    it['r'][rid] = {'n': 'إمالة هاء التأنيث وقفاً', 'cond': True}
+            if r['bayan'] not in it['b']:
+                it['b'].append(r['bayan'])
 
         # ٢-ب) الأصول المعمَّمة (ميم الجمع، الهمز الساكن، ضم الهاء، المدّ)
         for u in jl('%s/usul/%d.json' % (DATA, n)):
@@ -236,6 +276,84 @@ def main():
                 have.setdefault(rid, set()).add(q)
                 added += 1
 
+    # ٥) الوقف على الهمز (حمزة وخلف وخلاد وهشام) والإمالة والتقليل: الحكمُ تابعٌ لصورة الكلمة،
+    #    فيُعمَّم على كل موضعٍ فيه الكلمةُ نفسُها من موضعٍ نُصَّ فيه عليه (ببيانه حرفياً)
+    SHORT = {'warsh': 'ورش', 'bazzi': 'البزي', 'qunbul': 'قنبل', 'duri_a': 'الدوري', 'susi': 'السوسي',
+             'hisham': 'هشام', 'ibn_dhakwan': 'ابن ذكوان', 'shuba': 'شعبة', 'hafs': 'حفص', 'khalaf_h': 'خلف',
+             'khallad': 'خلاد', 'abu_harith': 'أبو الحارث', 'duri_k': 'الدوري', 'ibn_wardan': 'ابن وردان',
+             'ibn_jammaz': 'ابن جماز', 'ruways': 'رويس', 'rawh': 'روح', 'ishaq': 'إسحاق', 'idris': 'إدريس'}
+    IMALA = re.compile('إمال|أمال|تقليل|التقليل')
+    HAMZ = re.compile('تسهيل|إبدال|ابدال|نقل|حذف|بين بين|روم|إشمام|الهمز|همز')
+    WAQF_R = {'khalaf_h', 'khallad', 'hisham'}
+    MARKS = re.compile(r'[ۖ-ۜ۞۩\s]')
+
+    def hamza_inside(t):
+        # الوقف يؤثّر في الهمز المتوسط والمتطرف لا في الأول
+        ls = [c for c in MARKS.sub('', t) if 'ء' <= c <= 'ي']
+        return any(c in 'ءأإؤئ' and (i >= 2 or (i >= 1 and i == len(ls) - 1)) for i, c in enumerate(ls))
+
+    def wkey(t):
+        return MARKS.sub('', t)
+
+    def texts_for(it, rid):
+        out = []
+        if it['r'][rid].get('sn'):
+            out.append(it['r'][rid]['sn'])
+        for b in (it.get('db', []) if it['r'][rid].get('src') == 'd' else []):
+            lines = [l.strip() for l in b.splitlines() if l.strip()]
+            named = [l for l in lines if any(l.startswith(v + ':') or l.startswith(v + ' :') for v in SHORT.values())]
+            if named:
+                if SHORT[rid] == 'الدوري' and 'duri_a' in it['r'] and 'duri_k' in it['r']:
+                    continue                      # الدوريان معاً: لا يُعرَف أيّهما
+                out += [l.split(':', 1)[1].strip() for l in named if l.startswith(SHORT[rid])]
+            else:
+                out.append(b)
+        return out
+
+    seeds = {}
+    for n in range(1, 115):
+        for (s, e), it in allitems[n].items():
+            if s != e or s not in qall:
+                continue
+            for rid, rec in it['r'].items():
+                if rec.get('same'):
+                    continue
+                for T in texts_for(it, rid):
+                    kinds = []
+                    if IMALA.search(T):
+                        kinds.append('imala')
+                    if rid in WAQF_R and 'وقف' in T and HAMZ.search(T) and hamza_inside(qall[s][0]):
+                        kinds.append('waqf')
+                    for k in kinds:
+                        seeds.setdefault((rid, k, wkey(qall[s][0])), (T, rec.get('x'), rec.get('f')))
+    by_word = {}
+    for (rid, k, w), v in seeds.items():
+        by_word.setdefault(w, []).append((rid, k, v))
+    added2 = 0
+    for n in range(1, 115):
+        items = allitems[n]
+        have = {}
+        for (s, e), it in items.items():
+            for rid, r in it['r'].items():
+                if not r.get('same'):
+                    have.setdefault(rid, set()).update(range(s, e + 1))
+        for q in sorted(sq for sq, (t, nn) in qall.items() if nn == n):
+            for rid, k, (T, x, f) in by_word.get(wkey(qall[q][0]), []):
+                if q in have.get(rid, ()):
+                    continue
+                it = items.setdefault((q, q), {'s': q, 'e': q, 't': None, 'u': False, 'r': {}, 'b': []})
+                it['t'] = it['t'] or 'w'
+                rec = {'n': 'إمالة أو تقليل' if k == 'imala' else 'وقفاً على الهمز'}
+                if x:
+                    rec['x'], rec['f'] = x, f
+                if k == 'waqf':
+                    rec['cond'] = True
+                it['r'][rid] = rec
+                if T not in it['b']:
+                    it['b'].append(T)
+                have.setdefault(rid, set()).add(q)
+                added2 += 1
+
     stats = {'items': 0}
     for n in range(1, 115):
         emit(n, allitems[n], stats)
@@ -281,7 +399,7 @@ def main():
     meta['riwayat'] = riw
     meta['fonts'] = [{'id': r['id'], 'font': r['font']} for r in have_m.values()]
     dump(DATA + '/meta.json', meta)
-    print('عناصر الخلاف الموحَّدة:', stats['items'], '| معمَّمة على نظائر:', added, '| فروق رسم محضٍ أُزيلت:', dropped)
+    print('عناصر الخلاف الموحَّدة:', stats['items'], '| معمَّمة على نظائر:', added, '| وقف/إمالة معمَّمة:', added2, '| فروق رسم محضٍ أُزيلت:', dropped)
 
 
 if __name__ == '__main__':
