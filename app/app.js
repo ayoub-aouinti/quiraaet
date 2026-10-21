@@ -357,7 +357,7 @@ function entryNode(e, only, hl) {
       if (r.khulf) tags.append(mk('span', 'tag', 'بخلافٍ عنه'));
       if (tags.childNodes.length) row.appendChild(tags);
     } else {
-      row.appendChild(mk('span', 'same', r.n ? 'يخالف قالون: ' + r.n : 'يخالف قالون (انظر البيان)'));
+      row.appendChild(mk('span', 'same', r.n ? 'يخالف قالون: ' + r.n : 'يخالف قالون'));
       const tags = mk('span', 'tags');
       if (r.cond) tags.append(mk('span', 'tag', 'مقيَّد'));
       if (r.khulf) tags.append(mk('span', 'tag', 'بخلافٍ عنه'));
@@ -366,7 +366,7 @@ function entryNode(e, only, hl) {
     box.appendChild(row);
   }
   for (const b of e.b) {
-    const bay = mk('div', 'bayan'); bay.append(mk('b', null, 'بيان القراءة (بلفظ المصدر)'), document.createTextNode(b.startsWith('@') ? (S.rules[b.slice(1)] || '') : b));
+    const bay = mk('div', 'bayan'); bay.append(mk('b', null, 'بيان القراءة (بلفظ المصدر)'), document.createTextNode(b));
     box.appendChild(bay);
   }
   return box;
@@ -407,7 +407,6 @@ function onWordR(span) {
 /* ---------- التهيئة ---------- */
 async function init() {
   S.meta = await getJSON('data/meta.json');
-  S.rules = await getJSON('data/rules.json').catch(() => ({}));
   const css = S.meta.fonts.map(r => '@font-face{font-family:"f-' + r.id + '";src:url("fonts/' + r.font + '");font-display:swap}').join('');
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
   const sel = $('sura');

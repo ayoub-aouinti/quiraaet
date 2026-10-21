@@ -6,7 +6,9 @@
   صلة ميم الجمع   ابن وردان وابن جماز كالبزي (مصحفُه شاهدٌ): «لَكُمْ» ← «لَكُمُۥ» قبل متحرّك
   إبدال الهمز الساكن   ابن وردان وابن جماز كالسوسي (مصحفُه شاهدٌ) إلا «أنبئهم» و«ننبئهم»
   ضمّ هاء «عليهم وإليهم ولديهم»   حمزة (خلف وخلاد) ويعقوب (رويس وروح)؛ ولو ليعقوب كل هاء بعد ياء ساكنة
-  مدّ المنفصل والمتصل   ورش وحمزة ٦، عاصم ٥، ابن عامر والكسائي وخلف العاشر ٤ (على المذهب الأول)؛ ولا يظهر في المصاحف.
+  مدّ المتصل   ورش وحمزة (خلف وخلاد) ٦ حركات، وغيرهم ٤ كقالون فلا خلاف (بتصحيح صاحب المشروع)
+  مدّ المنفصل   ورش وحمزة ٦، شعبة وحفص ٤، ابن عامر والكسائي وخلف العاشر ٤؛ ولا يظهر في المصاحف.
+  السكت   خلف وخلاد عن حمزة: على لام التعريف وشيء، وخلف وحده (بخلف) على الساكن المفصول قبل الهمز
 
 قاعدةُ القبول: حيث يتوفّر مصحفُ زميلٍ (البزي، السوسي) لا يُقبَل الموضعُ إلا إن طابق المحوَّل ما في مصحفه.
 والبيانُ مقتطَعٌ حرفياً من مدخل القاعدة في الكتاب. ولا مَدّ في المصاحف فتحديدُ مواضعه من نصّ قالون بالنمط
@@ -51,9 +53,24 @@ def madd_str(w):
 MUTTASIL = re.compile('(?:َا|ُو|ِي)[%s]' % HAMZA)
 MUNFASIL = re.compile('(?:َا|ُوا?|ِي)$')
 HAMZ_START = re.compile('^[۞۞(]*[أإءؤئآ]')
+LAM = re.compile('^(?:(?:[وفبك][َِ]?)?ال|(?:[وف][َِ]?)?لِل)[ءأإؤئآ]')
+SHAY = re.compile('^(?:[وفبلك][َِ]?)?شَي[ءئ]')
+
+
+def sakin_end(c, raw):
+    """ساكنٌ آخر الكلمة غيرُ مدّ (يدخل التنوين واللين)"""
+    if not c or 'ٰ' in raw[-2:]:           # ألفٌ خنجرية: مدٌّ لا سكون
+        return False
+    if c[-1] in 'ًٌٍ':
+        return True
+    if c[-1] in 'اىَُِّ':
+        return False
+    return not (c[-1] == 'و' and c[-2:-1] == 'ُ' or c[-1] == 'ي' and c[-2:-1] == 'ِ')
+
+
 MIM = re.compile('[هكت][ُِ]مْ?$')
 
-# مقدار المدّ بالحركات على المذهب الأول (الداني): قالون ٣ والقصر في المنفصل
+# مقدار المدّ بالحركات (المنفصل؛ والمتصل ٦ لورش وحمزة وراوييه فقط): قالون القصر في المنفصل
 MADD = {'warsh': 6, 'khalaf_h': 6, 'khallad': 6, 'shuba': 5, 'hafs': 5,
         'hisham': 4, 'ibn_dhakwan': 4, 'abu_harith': 4, 'duri_k': 4, 'ishaq': 4, 'idris': 4}
 
@@ -86,15 +103,17 @@ def main():
         mw[rid] = m
 
     per = {}
-    st = {'silat': 0, 'ibdal': 0, 'ha': 0, 'muttasil': 0, 'munfasil': 0}
+    st = {'silat': 0, 'ibdal': 0, 'ha': 0, 'muttasil': 0, 'munfasil': 0, 'madd': 0, 'sakt_lam': 0, 'sakt_shay': 0, 'sakt_sep': 0}
 
     def add(w, recs, bayan, key):
         st[key] += 1
         per.setdefault(w['sura'], {}).setdefault(w['seq'], {'s': w['seq'], 'e': w['seq'], 't': 'u', 'r': {}, 'b': []})
         it = per[w['sura']][w['seq']]
         for rid, rec in recs.items():
+            if rid in it['r'] and rec.get('n') and rec['n'] not in it['r'][rid].get('n', ''):
+                it['r'][rid]['n'] = (it['r'][rid].get('n', '') + ' / ' + rec['n']).strip(' /')
             it['r'].setdefault(rid, rec)
-        if bayan not in it['b']:
+        if bayan and bayan not in it['b']:
             it['b'].append(bayan)
 
     for i, w in enumerate(Q):
@@ -136,6 +155,7 @@ def main():
                 add(w, recs, b_silat, 'ha')
 
         # ٤) المدّ المتصل والمنفصل (لا يظهر في المصاحف)
+        #    المتصل: ورش وحمزة (خلف وخلاد) ٦ حركات، وغيرهم ٤ كقالون فلا خلاف (بتصحيح صاحب المشروع)
         mc = madd_str(raw)
         muttasil = MUTTASIL.search(mc) is not None
         munfasil = bool(nxt) and MUNFASIL.search(mc) is not None and HAMZ_START.match(nxt['text']) is not None
@@ -143,33 +163,37 @@ def main():
             recs = {}
             for rid, k in MADD.items():
                 what = []
-                if muttasil:
-                    what.append('مدٌّ متصل %d حركات' % k)
+                if muttasil and k == 6:
+                    what.append('مدٌّ متصل ٦ حركات (وقالون ٤)')
                 if munfasil:
                     # المنفصل عند عاصم (شعبة وحفص) أربع حركات (المذهب الثاني): تصحيحٌ من صاحب المشروع
                     what.append('مدٌّ منفصل %d حركات' % (4 if rid in ('shuba', 'hafs') else k))
-                recs[rid] = {'n': ' و'.join(what)}
+                if what:
+                    recs[rid] = {'n': ' و'.join(what)}
             if muttasil:
                 st['muttasil'] += 1
             if munfasil:
                 st['munfasil'] += 1
-            # يُعدّان في عدّادٍ واحد للتقرير؛ العنصر واحدٌ لكل كلمة
-            per.setdefault(w['sura'], {}).setdefault(w['seq'], {'s': w['seq'], 'e': w['seq'], 't': 'u', 'r': {}, 'b': []})
-            it = per[w['sura']][w['seq']]
-            for rid, rec in recs.items():
-                if rid in it['r']:
-                    it['r'][rid]['n'] = (it['r'][rid].get('n', '') + ' / ' + rec['n']).strip(' /')
-                else:
-                    it['r'][rid] = rec
-            if b_madd not in it['b']:
-                it['b'].append(b_madd)
+            if recs:
+                add(w, recs, b_madd, 'madd')
+
+        # ٥) السكت لحمزة وراوييه: خلف يسكت قولاً واحداً على لام التعريف وشيء وبخلافٍ على الساكن المفصول،
+        #    وخلاد بخلافٍ على لام التعريف وشيء، ولا سكت له على المفصول
+        if LAM.search(c):
+            add(w, {'khalaf_h': {'n': 'السكت على لام التعريف قبل الهمز وصلاً'},
+                    'khallad': {'n': 'السكت على لام التعريف قبل الهمز وصلاً، وله تركُه'}}, None, 'sakt_lam')
+        elif SHAY.search(c):
+            add(w, {'khalaf_h': {'n': 'السكت على «شيء» وصلاً'},
+                    'khallad': {'n': 'السكت على «شيء» وصلاً، وله تركُه'}}, None, 'sakt_shay')
+        elif nxt and HAMZ_START.match(nxt['text']) and sakin_end(c, raw):
+            add(w, {'khalaf_h': {'n': 'السكت على الساكن المفصول قبل الهمز وصلاً، وله تركُه'}}, None, 'sakt_sep')
 
     os.makedirs(DATA + '/usul', exist_ok=True)
     for n in range(1, 115):
         arr = []
         for k in sorted(per.get(n, {})):
             it = per[n][k]
-            arr.append({'s': it['s'], 'e': it['e'], 't': 'u', 'b': it['b'],
+            arr.append({'s': it['s'], 'e': it['e'], 't': 'u', 'bk': it['b'],
                         'r': [{'id': rid, **rec} for rid, rec in it['r'].items()]})
         with open('%s/usul/%d.json' % (DATA, n), 'w', encoding='utf-8') as f:
             json.dump(arr, f, ensure_ascii=False, separators=(',', ':'))

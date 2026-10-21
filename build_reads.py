@@ -86,7 +86,7 @@ def emit(n, items, stats):
                 if r.get('dx'):
                     d['dx'] = r['dx']
                 rs.append(d)
-        out.append({'s': it['s'], 'e': it['e'], 't': it['t'], 'u': it['u'], 'r': rs, 'b': it['b']})
+        out.append({'s': it['s'], 'e': it['e'], 't': it['t'], 'u': it['u'], 'r': rs, 'b': it['b'], 'bk': it.get('bk', [])})
     stats['items'] += len(out)
     dump('%s/reads/%d.json' % (DATA, n), out)
 
@@ -119,7 +119,7 @@ def main():
         items = {}
 
         def item(s, e):
-            return items.setdefault((s, e), {'s': s, 'e': e, 't': None, 'u': False, 'r': {}, 'b': []})
+            return items.setdefault((s, e), {'s': s, 'e': e, 't': None, 'u': False, 'r': {}, 'b': [], 'bk': []})
 
         def phrase(s, e):
             return ' '.join(qall[i][0] for i in range(s, e + 1) if i in qall)
@@ -178,8 +178,8 @@ def main():
                 seg = rest0 if nq0 < 0 else rest0[:nq0]
                 own = re.sub(r'\s+', ' ', seg)
                 bay = (E['t'][:q0.end()] + seg).strip()
-            if bay not in it['b']:
-                it['b'].append(bay)
+            if bay not in it['bk']:
+                it['bk'].append(bay)          # نصُّ الكتاب يُحفَظ في البيانات ولا تعرضه الواجهة
             AS = [a for a in E['a']
                   if own is None or not [g['snip'] for g in a['g'] if g.get('snip')]
                   or any(re.sub(r'\s+', ' ', g['snip']) in own for g in a['g'] if g.get('snip'))]
@@ -264,13 +264,13 @@ def main():
         for u in jl('%s/usul/%d.json' % (DATA, n)):
             it = item(u['s'], u['e'])
             it['t'] = it['t'] or 'u'
-            for b in u['b']:
-                if b not in it['b']:
-                    it['b'].append(b)
+            for b in u['bk']:
+                if b not in it['bk']:
+                    it['bk'].append(b)
             for r in u['r']:
                 if r['id'] in it['r']:
-                    if r.get('n'):
-                        it['r'][r['id']].setdefault('n', r['n'])
+                    if r.get('n') and r['n'] not in it['r'][r['id']].get('n', ''):
+                        it['r'][r['id']]['n'] = (it['r'][r['id']].get('n', '') + ' / ' + r['n']).strip(' /')
                     continue
                 it['r'][r['id']] = {k: v for k, v in r.items() if k != 'id'}
 
@@ -311,7 +311,7 @@ def main():
                 if not mt or mt[1] == 0 or mt[0] != x:
                     continue                       # مصحف الزميل لا يُظهر التغيير نفسه هنا
                 dq, dx = letters(qall[q][0], x)
-                it = items.setdefault((q, q), {'s': q, 'e': q, 't': None, 'u': False, 'r': {}, 'b': []})
+                it = items.setdefault((q, q), {'s': q, 'e': q, 't': None, 'u': False, 'r': {}, 'b': [], 'bk': []})
                 it['t'] = it['t'] or 'p'
                 it['r'][rid] = {'x': x, 'f': f, 'ap': mate, 'dq': dq, 'dx': dx}
                 have.setdefault(rid, set()).add(q)
@@ -339,16 +339,16 @@ def main():
     def texts_for(it, rid):
         out = []
         if it['r'][rid].get('sn'):
-            out.append(it['r'][rid]['sn'])
+            out.append((it['r'][rid]['sn'], False))
         for b in (it.get('db', []) if it['r'][rid].get('src') == 'd' else []):
             lines = [l.strip() for l in b.splitlines() if l.strip()]
             named = [l for l in lines if any(l.startswith(v + ':') or l.startswith(v + ' :') for v in SHORT.values())]
             if named:
                 if SHORT[rid] == 'الدوري' and 'duri_a' in it['r'] and 'duri_k' in it['r']:
                     continue                      # الدوريان معاً: لا يُعرَف أيّهما
-                out += [l.split(':', 1)[1].strip() for l in named if l.startswith(SHORT[rid])]
+                out += [(l.split(':', 1)[1].strip(), True) for l in named if l.startswith(SHORT[rid])]
             else:
-                out.append(b)
+                out.append((b, True))
         return out
 
     seeds = {}
@@ -359,14 +359,14 @@ def main():
             for rid, rec in it['r'].items():
                 if rec.get('same'):
                     continue
-                for T in texts_for(it, rid):
+                for T, fromd in texts_for(it, rid):
                     kinds = []
                     if IMALA.search(T):
                         kinds.append('imala')
                     if rid in WAQF_R and 'وقف' in T and HAMZ.search(T) and hamza_inside(qall[s][0]):
                         kinds.append('waqf')
                     for k in kinds:
-                        seeds.setdefault((rid, k, wkey(qall[s][0])), (T, rec.get('x'), rec.get('f')))
+                        seeds.setdefault((rid, k, wkey(qall[s][0])), (T, rec.get('x'), rec.get('f'), fromd))
     by_word = {}
     for (rid, k, w), v in seeds.items():
         by_word.setdefault(w, []).append((rid, k, v))
@@ -379,10 +379,10 @@ def main():
                 if not r.get('same'):
                     have.setdefault(rid, set()).update(range(s, e + 1))
         for q in sorted(sq for sq, (t, nn) in qall.items() if nn == n):
-            for rid, k, (T, x, f) in by_word.get(wkey(qall[q][0]), []):
+            for rid, k, (T, x, f, fromd) in by_word.get(wkey(qall[q][0]), []):
                 if q in have.get(rid, ()):
                     continue
-                it = items.setdefault((q, q), {'s': q, 'e': q, 't': None, 'u': False, 'r': {}, 'b': []})
+                it = items.setdefault((q, q), {'s': q, 'e': q, 't': None, 'u': False, 'r': {}, 'b': [], 'bk': []})
                 it['t'] = it['t'] or 'w'
                 rec = {'n': 'إمالة أو تقليل' if k == 'imala' else 'وقفاً على الهمز'}
                 if x:
@@ -390,8 +390,9 @@ def main():
                 if k == 'waqf':
                     rec['cond'] = True
                 it['r'][rid] = rec
-                if T not in it['b']:
-                    it['b'].append(T)
+                tgt = it['b'] if fromd else it['bk']      # بيانُ ملف الخلاف يُعرَض؛ ونصُّ الكتاب يُحفَظ فقط
+                if T not in tgt:
+                    tgt.append(T)
                 have.setdefault(rid, set()).add(q)
                 added2 += 1
 
