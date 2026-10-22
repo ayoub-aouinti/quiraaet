@@ -16,6 +16,7 @@
 import json, os, re
 from canon import diff_idx, canon
 from normalize import norm
+from build_usul import tarqiq_idx, taghliz_idx
 
 DATA = 'app/data'
 ALL = ['qalun', 'warsh', 'bazzi', 'qunbul', 'duri_a', 'susi', 'hisham', 'ibn_dhakwan', 'shuba', 'hafs',
@@ -29,6 +30,33 @@ RNAME = {'hisham': 'هشام عن ابن عامر', 'ibn_dhakwan': 'ابن ذك�
          'ibn_wardan': 'ابن وردان عن أبي جعفر', 'ibn_jammaz': 'ابن جمّاز عن أبي جعفر',
          'ruways': 'رويس عن يعقوب', 'rawh': 'روح عن يعقوب', 'ishaq': 'إسحاق عن خلف العاشر',
          'idris': 'إدريس عن خلف العاشر'}
+
+
+NAMES = {'ورش': ['warsh'], 'البزي': ['bazzi'], 'قنبل': ['qunbul'], 'الدوري': ['duri_a', 'duri_k'], 'السوسي': ['susi'],
+         'هشام': ['hisham'], 'ابن ذكوان': ['ibn_dhakwan'], 'شعبة': ['shuba'], 'حفص': ['hafs'], 'خلف': ['khalaf_h'],
+         'خلاد': ['khallad'], 'أبو الحارث': ['abu_harith'], 'ابن وردان': ['ibn_wardan'], 'ابن جماز': ['ibn_jammaz'],
+         'رويس': ['ruways'], 'روح': ['rawh'], 'إسحاق': ['ishaq'], 'إدريس': ['idris']}
+
+
+def add_note(rec, text):
+    if text and text not in rec.get('n', '') and ('إمالة هاء التأنيث' not in text or 'إمالة هاء التأنيث' not in rec.get('n', '')):
+        rec['n'] = (rec.get('n', '') + ' / ' + text).strip(' /')
+
+
+def bayan_to_notes(it, e):
+    """بيانُ ملف الخلاف يصير ملاحظةً أمام الراوي: السطرُ المسمّى لصاحبه، وغيرُ المسمّى لكل من يخالف قالون في الموضع"""
+    ids = {r['id']: r for r in e['r']}
+    for l in [x.strip() for x in e['b'].splitlines() if x.strip()]:
+        m = re.match(r'^([^:]{1,40}?)\s*:\s*(.+)$', l)
+        nm = re.sub('[ّ]', '', m.group(1)).strip() if m else None
+        if m and nm in NAMES:
+            for rid in NAMES[nm]:
+                if rid in ids and not ids[rid]['same']:
+                    add_note(it['r'][rid], m.group(2).strip())
+        else:
+            for rid, r in ids.items():
+                if not r['same']:
+                    add_note(it['r'][rid], l)
 
 
 def skel(w):
@@ -135,6 +163,7 @@ def main():
             for r in e['r']:
                 it['r'][r['id']] = {'x': None if r['same'] else r['x'], 'f': 'hafs', 'same': bool(r['same']),
                                     'dq': r['dq'], 'dx': r['dx'], 'src': 'd'}
+            bayan_to_notes(it, e)
         docs = {k: dict(v['r']) for k, v in items.items()}
 
         # ٢) المداخل المسنَدة إلى كتب القراءات: من يخالف قالون في كل جانب
@@ -255,10 +284,10 @@ def main():
             it = item(s0, e0)
             it['t'] = it['t'] or tier0
             for rid in ('abu_harith', 'duri_k'):
-                if rid not in it['r']:
-                    it['r'][rid] = {'n': 'إمالة هاء التأنيث وقفاً', 'cond': True}
-            if r['bayan'] not in it['b']:
-                it['b'].append(r['bayan'])
+                rec = it['r'].setdefault(rid, {})
+                if 'إمالة هاء التأنيث' not in rec.get('n', ''):
+                    rec['n'] = (rec.get('n', '') + ' / إمالة هاء التأنيث وقفاً').strip(' /')
+                rec['cond'] = True               # البيان لهذين الراويين لا للكلمة كلها
 
         # ٢-ب) الأصول المعمَّمة (ميم الجمع، الهمز الساكن، ضم الهاء، المدّ)
         for u in jl('%s/usul/%d.json' % (DATA, n)):
@@ -269,8 +298,17 @@ def main():
                     it['bk'].append(b)
             for r in u['r']:
                 if r['id'] in it['r']:
-                    if r.get('n') and r['n'] not in it['r'][r['id']].get('n', ''):
-                        it['r'][r['id']]['n'] = (it['r'][r['id']].get('n', '') + ' / ' + r['n']).strip(' /')
+                    ex = it['r'][r['id']]
+                    if r.get('n') and r['n'] not in ex.get('n', ''):
+                        ex['n'] = (ex.get('n', '') + ' / ' + r['n']).strip(' /')
+                    if r['id'] == 'warsh' and r.get('x') and not ex.get('same'):
+                        if not ex.get('x'):
+                            ex.update({k: r[k] for k in ('x', 'f', 'dq', 'dx')})
+                        elif u['s'] == u['e']:
+                            # كلمةُ ورش من مصحفه: تُلوَّن فيها الراءُ واللام بالكشف على صورتها هي
+                            ix = (tarqiq_idx(ex['x']) if 'ترقيق الراء' in r['n'] else []) +                                  (taghliz_idx(ex['x']) if 'تغليظ اللام' in r['n'] else [])
+                            ex['dx'] = sorted(set(ex.get('dx', [])) | set(ix))
+                            ex['dq'] = sorted(set(ex.get('dq', [])) | set(r['dq']))
                     continue
                 it['r'][r['id']] = {k: v for k, v in r.items() if k != 'id'}
 

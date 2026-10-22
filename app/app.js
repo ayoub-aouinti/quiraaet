@@ -16,7 +16,7 @@ function load(k) { try { return localStorage.getItem(k); } catch (e) { return nu
 
 async function getJSON(path) {
   if (!S.cache[path]) {
-    S.cache[path] = fetch(path).then(r => {
+    S.cache[path] = fetch(path, { cache: 'no-cache' }).then(r => {
       if (!r.ok) throw new Error(path + ' (' + r.status + ')');
       return r.json();
     }).catch(err => {
@@ -324,13 +324,18 @@ function openSheet(titleText, titleFont, bodyNodes) {
   $('sheet-close').focus();
 }
 
+// نصُّ التقييد بحسب الحالة المذكورة في الملاحظة
+function condText(r) {
+  const n = r.n || '', w = /وقف/.test(n), v = /وصل/.test(n);
+  return w && !v ? 'مقيَّد وقفًا' : v && !w ? 'مقيَّد وصلًا' : 'مقيَّد (في بعض الأحوال)';
+}
+
 // عنصرُ خلافٍ: رواةٌ بكلماتهم وحروفهم المخالفة، ثم البيان بلفظ المصدر
 function entryNode(e, only, hl) {
   const rs = only ? e.r.filter(r => r.id === only) : e.r;
   const box = mk('div', 'ent' + (rs.some(r => S.sel.has(r.id)) ? '' : ' off'));
   const h = mk('h4'); h.append(mk('span', null, e.e > e.s ? 'خلاف في عبارة' : 'خلاف'));
-  if (e.t === 'shifted') h.append(mk('span', 'tag warn', '≈ رُبط بآية مجاورة (اختلاف العدّ)'));
-  else if (e.t === 'rasm') h.append(mk('span', 'tag warn', '≈ مطابقة بالرسم'));
+  if (e.t === 'rasm') h.append(mk('span', 'tag warn', '≈ مطابقة بالرسم'));
   else if (e.t === 'm') h.append(mk('span', 'tag', 'فرق في المصحف'));
   else if (e.t === 'u' || e.t === 'w') h.append(mk('span', 'tag', 'أصلٌ عامّ معمَّم على مواضعه'));
   if (e.u) h.append(mk('span', 'tag warn', 'مشكوك فيه'));
@@ -353,21 +358,17 @@ function entryNode(e, only, hl) {
       tx.appendChild(paint(r.x, marks)); row.appendChild(tx);
       const tags = mk('span', 'tags');
       if (r.n) tags.append(mk('span', 'tag', r.n));
-      if (r.cond) tags.append(mk('span', 'tag', 'مقيَّد (وقفًا أو وصلًا أو في بعض الأحوال)'));
+      if (r.cond) tags.append(mk('span', 'tag', condText(r)));
       if (r.khulf) tags.append(mk('span', 'tag', 'بخلافٍ عنه'));
       if (tags.childNodes.length) row.appendChild(tags);
     } else {
       row.appendChild(mk('span', 'same', r.n ? 'يخالف قالون: ' + r.n : 'يخالف قالون'));
       const tags = mk('span', 'tags');
-      if (r.cond) tags.append(mk('span', 'tag', 'مقيَّد'));
+      if (r.cond) tags.append(mk('span', 'tag', condText(r)));
       if (r.khulf) tags.append(mk('span', 'tag', 'بخلافٍ عنه'));
       if (tags.childNodes.length) row.appendChild(tags);
     }
     box.appendChild(row);
-  }
-  for (const b of e.b) {
-    const bay = mk('div', 'bayan'); bay.append(mk('b', null, 'بيان القراءة (بلفظ المصدر)'), document.createTextNode(b));
-    box.appendChild(bay);
   }
   return box;
 }

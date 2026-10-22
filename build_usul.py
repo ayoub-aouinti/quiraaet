@@ -8,6 +8,7 @@
   ضمّ هاء «عليهم وإليهم ولديهم»   حمزة (خلف وخلاد) ويعقوب (رويس وروح)؛ ولو ليعقوب كل هاء بعد ياء ساكنة
   مدّ المتصل   ورش وحمزة (خلف وخلاد) ٦ حركات، وغيرهم ٤ كقالون فلا خلاف (بتصحيح صاحب المشروع)
   مدّ المنفصل   ورش وحمزة ٦، شعبة وحفص ٤، ابن عامر والكسائي وخلف العاشر ٤؛ ولا يظهر في المصاحف.
+  ورش   مدّ البدل ومدّ اللين وترقيق الراء (بقواعدها المشهورة على صورة الكلمة)
   السكت   خلف وخلاد عن حمزة: على لام التعريف وشيء، وخلف وحده (بخلف) على الساكن المفصول قبل الهمز
 
 قاعدةُ القبول: حيث يتوفّر مصحفُ زميلٍ (البزي، السوسي) لا يُقبَل الموضعُ إلا إن طابق المحوَّل ما في مصحفه.
@@ -53,7 +54,7 @@ def madd_str(w):
 MUTTASIL = re.compile('(?:َا|ُو|ِي)[%s]' % HAMZA)
 MUNFASIL = re.compile('(?:َا|ُوا?|ِي)$')
 HAMZ_START = re.compile('^[۞۞(]*[أإءؤئآ]')
-LAM = re.compile('^(?:(?:[وفبك][َِ]?)?ال|(?:[وف][َِ]?)?لِل)[ءأإؤئآ]')
+LAM = re.compile('^(?:(?:[وف][َِ]?)?(?:[بك][َِ]?)?ال|(?:[وف][َِ]?)?لِل)[ءأإؤئآ]')
 SHAY = re.compile('^(?:[وفبلك][َِ]?)?شَي[ءئ]')
 
 
@@ -73,6 +74,85 @@ MIM = re.compile('[هكت][ُِ]مْ?$')
 # مقدار المدّ بالحركات (المنفصل؛ والمتصل ٦ لورش وحمزة وراوييه فقط): قالون القصر في المنفصل
 MADD = {'warsh': 6, 'khalaf_h': 6, 'khallad': 6, 'shuba': 5, 'hafs': 5,
         'hisham': 4, 'ibn_dhakwan': 4, 'abu_harith': 4, 'duri_k': 4, 'ishaq': 4, 'idris': 4}
+
+
+# ---- أحكام ورش: مدّ البدل ومدّ اللين وترقيق الراء (على صورة قالون في المصحف) ----
+FATH, DAMM, KASR, SUK = set('ًَٗ'), set('ٌُٞ'), set('ٍِٖ'), set('ْۡ')
+HEAVY = set('خصضطظغق')
+ALLMARKS = set('ٰۣٓٔۢۥۦۧۨ۟۠ۤ') | FATH | DAMM | KASR | SUK | {'ّ'}
+
+
+def toks(raw):
+    """حروفُ الكلمة بعلاماتها وموضع كل حرفٍ في النص الأصلي: [حرف، علامات، موضع]"""
+    T = []
+    for i, ch in enumerate(raw):
+        if WAQF.match(ch):
+            continue
+        if ch in ALLMARKS or 'ً' <= ch <= 'ٟ':
+            if T:
+                T[-1][1].add(ch)
+        elif ch != 'ـ':
+            T.append([ch, set(), i])
+    return T
+
+
+def has_badal(raw):
+    """همزةٌ بعدها حرفُ مدٍّ من جنس حركتها في الكلمة نفسها (غير مشدَّد ولا بعده ساكن)"""
+    s = WAQF.sub('', raw)
+    s = re.sub('([%s])ٓ' % HAMZA, r'\1َا', s)
+    for m in re.finditer('([%s])([َُِ])([اوىيٰۥۦ])' % HAMZA, s):
+        v, l = m.group(2), m.group(3)
+        if (v == 'َ' and l in 'اٰ') or (v == 'ُ' and l in 'وۥ') or (v == 'ِ' and l in 'يىۦ'):
+            rest = s[m.end():]
+            if rest[:1] == 'ّ':
+                continue
+            if v == 'ُ' and re.match('^[ْ۟۠]*لَ', rest):   # أولئك وأولاء وأولات: الواو زائدة لا مدّ
+                continue
+            rest = re.sub('^[ْٰ۟۠]+', '', rest)
+            if len(rest) >= 2 and rest[1] in 'ّْ':
+                continue
+            return True
+    return False
+
+
+LIN = re.compile('َ[يو][%s]' % HAMZA)
+
+
+def tarqiq_idx(raw):
+    """مواضع الراء المرقَّقة لورش: مفتوحةً أو مضمومةً بعد كسرٍ أو ياءٍ ساكنة أو ساكنٍ غير مستعلٍ بعد كسر،
+    وساكنةً بعد كسرٍ لا يليها مستعلٍ"""
+    T, out = toks(raw), []
+    for i, (c, m, pos) in enumerate(T):
+        if c != 'ر' or i == 0:
+            continue
+        p, pm, _ = T[i - 1]
+        if p == 'ٱ':
+            continue
+        if m & (FATH | DAMM) and not m & KASR:
+            if pm & KASR:
+                out.append(pos)
+            elif p in 'يے' and not pm & (FATH | DAMM | KASR | {'ّ'}):
+                out.append(pos)
+            elif i >= 2 and pm & SUK and p not in HEAVY and T[i - 2][1] & KASR and p not in 'يے':
+                out.append(pos)
+        elif m & SUK and not m & (FATH | DAMM | KASR):
+            if pm & KASR and i + 1 < len(T) and T[i + 1][0] not in HEAVY:
+                out.append(pos)
+    return out
+
+
+def taghliz_idx(raw):
+    """مواضع اللام المغلَّظة لورش: لامٌ مفتوحة بعد صادٍ أو طاءٍ أو ظاءٍ مفتوحة أو ساكنةٍ بعد فتح"""
+    T, out = toks(raw), []
+    for i, (c, m, pos) in enumerate(T):
+        if c != 'ل' or i == 0 or not m & FATH or m & (KASR | DAMM):
+            continue
+        p, pm, _ = T[i - 1]
+        if p not in 'صطظ':
+            continue
+        if pm & FATH and not pm & (KASR | DAMM) or (pm & SUK and i >= 2 and T[i - 2][1] & FATH):
+            out.append(pos)
+    return out
 
 
 def main():
@@ -103,16 +183,25 @@ def main():
         mw[rid] = m
 
     per = {}
-    st = {'silat': 0, 'ibdal': 0, 'ha': 0, 'muttasil': 0, 'munfasil': 0, 'madd': 0, 'sakt_lam': 0, 'sakt_shay': 0, 'sakt_sep': 0}
+    st = {'silat': 0, 'ibdal': 0, 'ha': 0, 'muttasil': 0, 'munfasil': 0, 'madd': 0, 'sakt_lam': 0, 'sakt_shay': 0, 'sakt_sep': 0, 'badal': 0, 'lin': 0, 'tarqiq': 0, 'taghliz': 0}
 
     def add(w, recs, bayan, key):
         st[key] += 1
         per.setdefault(w['sura'], {}).setdefault(w['seq'], {'s': w['seq'], 'e': w['seq'], 't': 'u', 'r': {}, 'b': []})
         it = per[w['sura']][w['seq']]
         for rid, rec in recs.items():
-            if rid in it['r'] and rec.get('n') and rec['n'] not in it['r'][rid].get('n', ''):
-                it['r'][rid]['n'] = (it['r'][rid].get('n', '') + ' / ' + rec['n']).strip(' /')
-            it['r'].setdefault(rid, rec)
+            ex = it['r'].get(rid)
+            if ex is not None:
+                if rec.get('n') and rec['n'] not in ex.get('n', ''):
+                    ex['n'] = (ex.get('n', '') + ' / ' + rec['n']).strip(' /')
+                if rec.get('x'):
+                    if not ex.get('x'):
+                        ex.update({k: rec[k] for k in ('x', 'f', 'dq', 'dx')})
+                    elif ex['x'] == rec['x']:
+                        for k in ('dq', 'dx'):
+                            ex[k] = sorted(set(ex[k]) | set(rec[k]))
+            else:
+                it['r'][rid] = rec
         if bayan and bayan not in it['b']:
             it['b'].append(bayan)
 
@@ -187,6 +276,18 @@ def main():
                     'khallad': {'n': 'السكت على «شيء» وصلاً، وله تركُه'}}, None, 'sakt_shay')
         elif nxt and HAMZ_START.match(nxt['text']) and sakin_end(c, raw):
             add(w, {'khalaf_h': {'n': 'السكت على الساكن المفصول قبل الهمز وصلاً، وله تركُه'}}, None, 'sakt_sep')
+
+        # ٦) ورش: مدّ البدل (٢ أو ٤ أو ٦) ومدّ اللين قبل الهمز (٤ أو ٦) وترقيق الراء
+        if has_badal(raw):
+            add(w, {'warsh': {'n': 'مدّ البدل: قصر أو توسط أو إشباع (٢ أو ٤ أو ٦)'}}, None, 'badal')
+        if LIN.search(c):
+            add(w, {'warsh': {'n': 'مدّ اللين قبل الهمز: توسط أو إشباع (٤ أو ٦)'}}, None, 'lin')
+        ix = tarqiq_idx(w['text'])
+        if ix:
+            add(w, {'warsh': {'n': 'ترقيق الراء', 'x': w['text'], 'f': 'qalun', 'dq': ix, 'dx': ix}}, None, 'tarqiq')
+        ix = taghliz_idx(w['text'])
+        if ix:
+            add(w, {'warsh': {'n': 'تغليظ اللام', 'x': w['text'], 'f': 'qalun', 'dq': ix, 'dx': ix}}, None, 'taghliz')
 
     os.makedirs(DATA + '/usul', exist_ok=True)
     for n in range(1, 115):
