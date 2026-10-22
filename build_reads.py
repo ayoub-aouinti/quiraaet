@@ -182,8 +182,12 @@ def emit(n, items, stats, phrase=None, prevw=None):
                         # الهمزة الأولى مرسومةٌ ألفاً: إن تغيّر آخرُ الكلمة السابقة في مصحف ورش (ساكنٌ حُرِّك) فهو نقلُ حركتها إليه
                         pq, pw = prevw(it['s'])
                         A_, B_ = tokens(pq), tokens(pw)
-                        if A_ and B_ and A_[-1][1] == 's' and B_[-1][1] in ('a', 'u', 'i') and A_[-1][0] == B_[-1][0]:
+                        if re.search(r'[ًٌٍٖٗٞ][اىي]?\W*$', re.sub('[ۖ-ۜ۞۩]', '', pq)):
+                            dsc = dsc.replace(INITIAL_HAMZA, 'نقل حركة الهمزة إلى نون التنوين قبلها')
+                        elif A_ and B_ and A_[-1][1] == 's' and B_[-1][1] in ('a', 'u', 'i') and A_[-1][0] == B_[-1][0]:
                             dsc = dsc.replace(INITIAL_HAMZA, 'نقل حركة الهمزة إلى الساكن قبلها (آخر الكلمة السابقة)')
+                    if 'إدخال' in r.get('n', '') or (rid in ('ibn_wardan', 'ibn_jammaz') and r.get('n')):
+                        dsc = None                 # باب الهمزتين: البيانُ تامٌّ، ووصفُ الحروف يخلط ألفَ الفصل وصلةَ الميم
                     if not r.get('n') or (dsc and dsc not in r['n']):
                         r = dict(r, n=' / '.join(x for x in (dsc or ('' if r.get('n') else 'فرق في ضبط الكلمة'), r.get('n')) if x))
                 for key in ('x', 'f', 'ap', 'same', 'cond', 'khulf', 'n', 'dqa', 'dxa'):
@@ -378,6 +382,8 @@ def main():
                 if b not in it['bk']:
                     it['bk'].append(b)
             for r in u['r']:
+                if r.get('pair') and it['r'].get(r['id'], {}).get('n'):
+                    continue                     # لراوي هذه الكلمة بيانٌ من مصدرٍ آخر (ملف الخلاف): يُقدَّم
                 if r['id'] in IK and u['s'] == u['e'] and 'صلة هاء الضمير' in r.get('n', ''):
                     # العبارةُ المتعدّدة الكلمات التي ذكرها الكتاب تشمل الكلمة: تُضاف الملاحظةُ إليها بدل بطاقةٍ ثانية
                     cov_k = [k for k, v in items.items() if k[0] < k[1] and k[0] <= u['s'] <= k[1] and r['id'] in v['r']
@@ -389,6 +395,8 @@ def main():
                         continue
                 if r['id'] in it['r']:
                     ex = it['r'][r['id']]
+                    if r.get('pair') and r.get('khulf'):
+                        ex['khulf'] = True
                     if r.get('n') and r['n'] not in ex.get('n', ''):
                         ex['n'] = (ex.get('n', '') + ' / ' + r['n']).strip(' /')
                     if r['id'] in IK and r.get('x') and not ex.get('same') and not ex.get('x'):

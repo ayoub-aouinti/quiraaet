@@ -23,7 +23,7 @@ from canon import canon, diff_idx, norm, silah_idx
 DATA = 'app/data'
 WAQF = re.compile('[ۖ-ۜ۞۩]')
 HAMZA = 'ءأإؤئ'
-MUSH = {'bazzi': 'bazzi', 'susi': 'susi', 'qunbul': 'qunbul', 'warsh': 'warsh'}
+MUSH = {'bazzi': 'bazzi', 'susi': 'susi', 'qunbul': 'qunbul', 'warsh': 'warsh', 'hafs': 'hafs', 'shuba': 'shuba', 'duri_a': 'duri'}
 
 
 def jl(p):
@@ -61,9 +61,58 @@ LAM = re.compile('^(?:(?:[وف][َِ]?)?(?:[بك][َِ]?)?ال|(?:[وف][َِ]?)
 PAIR = re.compile('^[۞]?[وف]?[أء]َٰ')
 PAIR_KASRA = {'أذا', 'أله', 'أنا', 'أنك'}
 PAIR_DAMMA = {'أشهدوا', 'ألقي', 'أنزل', 'أونبئكم'}
-PAIR_NOTE = {'fatha': 'وجهان: إبدال الهمزة الثانية ألفاً مع المدّ، أو تسهيلها بين بين من غير إدخال',
-             'kasra': 'تسهيل الهمزة الثانية بين بين (بينها وبين الياء) من غير إدخال',
-             'damma': 'تسهيل الهمزة الثانية بين بين (بينها وبين الواو) من غير إدخال'}
+TSH = {'fatha': 'تسهيل الهمزة الثانية بين بين من غير إدخال',
+       'kasra': 'تسهيل الهمزة الثانية بين بين (بينها وبين الياء) من غير إدخال',
+       'damma': 'تسهيل الهمزة الثانية بين بين (بينها وبين الواو) من غير إدخال'}
+TAH = 'تحقيق الهمزتين من غير إدخال'
+WARSH_FATHA = 'وجهان: إبدال الهمزة الثانية ألفاً مع المدّ، أو تسهيلها بين بين من غير إدخال'
+# مصاحف من لهم مصحفٌ يُكتب منه لفظُهم
+PAIR_MUSH = {'warsh': 'warsh', 'bazzi': 'bazzi', 'qunbul': 'qunbul', 'susi': 'susi', 'duri_a': 'duri', 'shuba': 'shuba', 'hafs': 'hafs'}
+
+
+H4 = {'hisham', 'ibn_dhakwan', 'ibn_wardan', 'ibn_jammaz'}
+# مواضع يقرأ فيها بعضُ القراء بغير الاستفهام بهمزتين (إخبارٌ أو همزةٌ واحدة) فلا يُنسب إليهم حكمُ الباب (من مداخل الكتاب)
+PAIR_EXC = {(13, 5): H4, (17, 49): H4, (17, 98): H4, (23, 83): H4, (32, 9): H4, (37, 53): H4,
+            (37, 16): {'hisham', 'ibn_dhakwan'}, (79, 10): {'ibn_wardan', 'ibn_jammaz'},
+            (12, 90): {'bazzi', 'qunbul', 'ibn_wardan', 'ibn_jammaz'}, (36, 18): {'ibn_wardan', 'ibn_jammaz'},
+            (27, 69): {'hisham', 'ibn_dhakwan', 'abu_harith', 'duri_k'}, (19, 66): {'ibn_dhakwan'},
+            (67, 17): {'qunbul'}}
+# هشام: الإدخال وحده («قولاً واحداً» أو «ليس له إلا الإدخال» في الكتاب)
+HISHAM_IDKHAL = {(26, 40), (19, 66), (29, 28), (79, 10), (37, 52), (37, 86), (56, 50)}
+
+
+def pair_table(kind, key):
+    """ما يخالف به كلُّ راوٍ قالونَ (تسهيلٌ مع الإدخال) في الهمزتين من كلمة، بحسب مداخل الكتاب وأصول القراء:
+    ورش وابن كثير ورويس: تسهيل الثانية بلا إدخال؛ وروح والباقون: تحقيق بلا إدخال؛ وهشام: بحسب الموضع (تحقيق مع
+    الإدخال وعدمه، أو الإدخال وحده في مواضع، وفي المفتوحة تحقيقٌ أو تسهيلٌ كلاهما مع الإدخال)؛ وأبو جعفر وأبو عمرو
+    كقالون في المفتوحة والمكسورة، ولأبي عمرو في المضمومة الإدخال وعدمه؛ والمفتوحة لورش وجهان (بتصحيح صاحب المشروع)."""
+    if key == (43, 18):                    # «أشهدوا»: المدنيان وحدهما بهمزتين، والباقون بهمزة واحدة
+        return {'warsh': (TSH['damma'], False)}
+    T = {'warsh': (WARSH_FATHA if kind == 'fatha' else TSH[kind], False),
+         'bazzi': (TSH[kind], False), 'qunbul': (TSH[kind], False), 'ruways': (TSH[kind], False),
+         'rawh': (TAH, False)}
+    for rid in ('ibn_dhakwan', 'shuba', 'hafs', 'khalaf_h', 'khallad', 'abu_harith', 'duri_k', 'ishaq', 'idris'):
+        T[rid] = (TAH, False)
+    if key in HISHAM_IDKHAL:
+        T['hisham'] = ('تحقيق الهمزتين مع الإدخال (قولاً واحداً)', False)
+    elif key == (41, 8):
+        T['hisham'] = ('تسهيل الثانية أو تحقيقها مع الإدخال في كل منهما', True)
+    elif key == (41, 43):                   # «ءأعجمي»
+        T['hisham'] = ('إسقاط الهمزة الأولى وتحقيق الثانية', False)
+        for rid in ('ibn_dhakwan', 'hafs'):
+            T[rid] = (TSH['fatha'], False)
+    elif kind == 'fatha':
+        T['hisham'] = ('تحقيق الثانية أو تسهيلها مع الإدخال في كل منهما', True)
+    elif kind == 'damma' and key in ((54, 25), (38, 7)):
+        T['hisham'] = ('ثلاثة أوجه: تسهيل الثانية مع الإدخال، وتحقيقها مع الإدخال وعدمه', True)
+    else:
+        T['hisham'] = ('تحقيق الهمزتين مع الإدخال وعدمه', True)
+    if kind == 'damma':
+        for rid in ('duri_a', 'susi'):
+            T[rid] = ('تسهيل الهمزة الثانية مع الإدخال وعدمه', True)
+    for rid in PAIR_EXC.get(key, ()):
+        T.pop(rid, None)
+    return T
 
 
 def pair_kind(raw):
@@ -332,13 +381,18 @@ def main():
 
         # ٦) ورش: مدّ البدل (٢ أو ٤ أو ٦) ومدّ اللين قبل الهمز (٤ أو ٦) وترقيق الراء
         if pk:
-            # باب الهمزتين من كلمة (ورش): لا مدّ بدلٍ ولا مدّ متصل؛ بل إبدالٌ أو تسهيلٌ بلا إدخال (بتصحيح صاحب المشروع)
-            wx = mw['warsh'].get(w['seq'])
-            rec = {'n': PAIR_NOTE[pk]}
-            if wx:
-                fx = next((k for k, c in enumerate(wx) if c in 'أءا'), 0)
-                rec.update({'x': wx, 'f': 'warsh', 'dq': [w['text'].index('ٰ')], 'dx': [fx]})
-            add(w, {'warsh': rec}, None, 'badal')
+            # باب الهمزتين من كلمة: لا مدّ بدلٍ ولا مدّ متصل (ألفُ الفصل لقالون وحده)؛ بل تسهيلٌ أو تحقيقٌ أو إبدال
+            recs = {}
+            fx_ = lambda x: next((k for k, c in enumerate(x) if c in 'أءا'), 0)
+            for rid, (note, kh) in pair_table(pk, (w['sura'], w['ayah'])).items():
+                rec = {'n': note, 'pair': True}
+                if kh:
+                    rec['khulf'] = True
+                wx = mw[PAIR_MUSH[rid]].get(w['seq']) if rid in PAIR_MUSH else None
+                if wx:
+                    rec.update({'x': wx, 'f': PAIR_MUSH[rid], 'dq': [w['text'].index('ٰ')], 'dx': [fx_(wx)]})
+                recs[rid] = rec
+            add(w, recs, None, 'badal')
         elif has_badal(raw):
             add(w, {'warsh': {'n': 'مدّ البدل: قصر أو توسط أو إشباع (٢ أو ٤ أو ٦)'}}, None, 'badal')
         if LIN.search(c):
