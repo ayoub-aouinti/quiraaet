@@ -14,9 +14,13 @@
 في قالون إن أظهر مصحفُ الزميل في ذلك الموضع التغييرَ عينَه (وسمُ t = p، وفيه ≈).
 """
 import json, os, re
+from difflib import SequenceMatcher
+import unicodedata
 from canon import diff_idx, canon
 from normalize import norm
-from build_usul import tarqiq_idx, taghliz_idx
+from describe import describe, has_taqlil
+from warsh_khulf import load as load_khulf
+from build_usul import tarqiq_idx, taghliz_idx, FAW
 
 DATA = 'app/data'
 ALL = ['qalun', 'warsh', 'bazzi', 'qunbul', 'duri_a', 'susi', 'hisham', 'ibn_dhakwan', 'shuba', 'hafs',
@@ -59,6 +63,45 @@ def bayan_to_notes(it, e):
                     add_note(it['r'][rid], l)
 
 
+def imala_letter(t, i):
+    """الألفُ أو الياءُ الممالة بعد الحرف i: ألفٌ خنجرية في عنقوده، وإلا أولُ حرفٍ تالٍ من ا ى ي ے"""
+    j = i + 1
+    while j < len(t) and not unicodedata.category(t[j]).startswith('L'):
+        if t[j] == 'ٰ':
+            return j
+        j += 1
+    return j if j < len(t) and t[j] in 'اىيے' else None
+
+
+def taqlil_idx(q, x):
+    """موضعُ الألف/الياء الممالة في كلمة ورش (بعلامة النقطة تحتَ الحرف قبلها) وفي المقابل من كلمة قالون"""
+    base = []
+    for m in re.finditer('۪', x):
+        i = m.start() - 1
+        while i > 0 and not unicodedata.category(x[i]).startswith('L'):
+            i -= 1
+        if i >= 0 and not (i == 0 and x[0] in 'اٱ'):
+            base.append(i)
+    cq, cx = canon(q), canon(x)
+    sm = SequenceMatcher(None, ''.join(c for c, _ in cq), ''.join(c for c, _ in cx), autojunk=False)
+    pos_x = {p_: k for k, (c, p_) in enumerate(cx)}
+    dq, dx = set(), set()
+    for b in base:
+        a = imala_letter(x, b)
+        if a is not None:
+            dx.add(a)
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag != 'equal':
+            continue
+        for b in base:
+            k = pos_x.get(b)
+            if k is not None and j1 <= k < j2:
+                a = imala_letter(q, cq[i1 + k - j1][1])
+                if a is not None:
+                    dq.add(a)
+    return sorted(dq), sorted(dx)
+
+
 def skel(w):
     t = norm(w)
     return t[:1] + re.sub('[اويى]', '', t[1:]) if t else ''
@@ -95,7 +138,12 @@ def letters(phrase, x):
     return dq, dx
 
 
-def emit(n, items, stats):
+KHULF = {}
+for _w, _v in load_khulf().items():
+    KHULF.setdefault(skel(_w), set()).update(_v)
+
+
+def emit(n, items, stats, phrase=None):
     out = []
     for k in sorted(items):
         it = items[k]
@@ -106,7 +154,22 @@ def emit(n, items, stats):
             if rid in it['r']:
                 r = it['r'][rid]
                 d = {'id': rid}
-                for key in ('x', 'f', 'ap', 'same', 'cond', 'khulf', 'n'):
+                if rid == 'warsh' and r.get('x') and r.get('f') == 'warsh' and it['s'] == it['e'] and has_taqlil(r['x']):
+                    # بخلفٍ عنه: إن اتفقت كلُّ ملاحظات الكتاب على ذلك للكلمة (وإلا لم يُوسَم لتعارض الملاحظات)
+                    qw = phrase(it['s'], it['e'])
+                    vals = set()
+                    for v in {skel(qw), skel(qw[1:]) if qw[:1] in 'وفبلك' else ''}:
+                        vals |= KHULF.get(v, set())
+                    if vals == {True}:
+                        r = dict(r, khulf=True)
+                    tq, tx = taqlil_idx(qw, r['x'])
+                    r = dict(r, dqa=tq, dxa=tx)
+                if r.get('x') and not r.get('same') and phrase and r.get('f') != 'qalun' and r.get('src') != 'd':
+                    # وصفُ فرق الكلمة من مقابلة الحروف (لا من بيان ملف الخلاف)، ويُقدَّم على ما عمّمته الأصول
+                    dsc = describe(phrase(it['s'], it['e']), r['x'], warsh=(rid == 'warsh'))
+                    if not r.get('n') or (dsc and dsc not in r['n']):
+                        r = dict(r, n=' / '.join(x for x in (dsc or ('' if r.get('n') else 'فرق في ضبط الكلمة'), r.get('n')) if x))
+                for key in ('x', 'f', 'ap', 'same', 'cond', 'khulf', 'n', 'dqa', 'dxa'):
                     if r.get(key):
                         d[key] = r[key]
                 if r.get('dq'):
@@ -434,9 +497,21 @@ def main():
                 have.setdefault(rid, set()).add(q)
                 added2 += 1
 
+    # الحروف المقطَّعة: لا خلاف لابن كثير (البزي وقنبل) فيها، فيُزال ما نتج من فرق رسم المصحف
+    for n, k in FAW.items():
+        fs = set(sorted(sq for sq, (t, nn) in qall.items() if nn == n)[:k])
+        for (s_, e_), it in allitems[n].items():
+            if s_ == e_ and s_ in fs:
+                for rid in ('bazzi', 'qunbul'):
+                    it['r'].pop(rid, None)
+            elif fs & set(range(s_, e_ + 1)):
+                for rid in ('ibn_wardan', 'ibn_jammaz'):     # صفوفٌ مجملة بلا وجه: يغني عنها السكت المنصوص
+                    if rid in it['r'] and not it['r'][rid].get('n') and not it['r'][rid].get('x'):
+                        del it['r'][rid]
+
     stats = {'items': 0}
     for n in range(1, 115):
-        emit(n, allitems[n], stats)
+        emit(n, allitems[n], stats, lambda a, b: ' '.join(qall[i][0] for i in range(a, b + 1) if i in qall))
 
     # فروق الرسم المحض (تصنيف 2) التي لا يسندها بيانٌ تُزال من مصاحف الروايات: لا علاقة لها بالقراءة
     cov = {rid: set() for rid in MUSH}

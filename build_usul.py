@@ -155,6 +155,11 @@ def taghliz_idx(raw):
     return out
 
 
+# الحروف المقطَّعة في أوائل السور: عددُ كلماتها من أول السورة (وفي الشورى «حم» و«عسق»)
+FAW = {2: 1, 3: 1, 7: 1, 10: 1, 11: 1, 12: 1, 13: 1, 14: 1, 15: 1, 19: 1, 20: 1, 26: 1, 27: 1, 28: 1, 29: 1,
+       30: 1, 31: 1, 32: 1, 36: 1, 38: 1, 40: 1, 41: 1, 42: 2, 43: 1, 44: 1, 45: 1, 46: 1, 50: 1, 68: 1}
+
+
 def main():
     E = {}
     for l in open('out/badur_entries.jsonl', encoding='utf-8'):
@@ -183,7 +188,7 @@ def main():
         mw[rid] = m
 
     per = {}
-    st = {'silat': 0, 'ibdal': 0, 'ha': 0, 'muttasil': 0, 'munfasil': 0, 'madd': 0, 'sakt_lam': 0, 'sakt_shay': 0, 'sakt_sep': 0, 'badal': 0, 'lin': 0, 'tarqiq': 0, 'taghliz': 0}
+    st = {'silat': 0, 'ibdal': 0, 'ha': 0, 'muttasil': 0, 'munfasil': 0, 'madd': 0, 'sakt_lam': 0, 'sakt_shay': 0, 'sakt_sep': 0, 'badal': 0, 'lin': 0, 'tarqiq': 0, 'taghliz': 0, 'faw': 0}
 
     def add(w, recs, bayan, key):
         st[key] += 1
@@ -205,7 +210,15 @@ def main():
         if bayan and bayan not in it['b']:
             it['b'].append(bayan)
 
+    faw = set()
+    for n, k in FAW.items():
+        faw.update([w['seq'] for w in Q if w['sura'] == n][:k])
     for i, w in enumerate(Q):
+        if w['seq'] in faw:
+            # أبو جعفر براوييه: السكت على كل حرفٍ منها؛ ولا خلاف لابن كثير فيها (فلا يُطبَّق عليها غيرُ ذلك)
+            n_ = 'السكت على كل حرف من الحروف المقطَّعة'
+            add(w, {'ibn_wardan': {'n': n_}, 'ibn_jammaz': {'n': n_}}, None, 'faw')
+            continue
         raw = WAQF.sub('', w['text']).strip()
         nxt = Q[i + 1] if i + 1 < len(Q) and Q[i + 1]['ayah'] == w['ayah'] and Q[i + 1]['sura'] == w['sura'] else None
         c = cstr(raw)

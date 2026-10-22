@@ -37,20 +37,27 @@ function clusters(text) {
   return out;
 }
 const REV = {};   // لون ← معرّف القارئ، ليُعرَف أيّ قارئٍ لُوِّن حرفُه عند الضغط
-function paint(text, marks) {          // marks: Map(index -> color)
-  if (!marks || !marks.size) return document.createTextNode(text);
+function paint(text, marks, exact) {   // marks: Map(index -> color)؛ exact: Map(index -> color) يُلوِّن الحرفَ المعيَّن وحده ولو كان علامةً في عنقود
+  if ((!marks || !marks.size) && (!exact || !exact.size)) return document.createTextNode(text);
   const frag = document.createDocumentFragment();
   let run = '';
   const flush = () => { if (run) { frag.appendChild(document.createTextNode(run)); run = ''; } };
+  const put = (str, col) => {
+    flush();
+    const el = mk('i', null, str); el.style.color = col;
+    if (REV[col]) el.dataset.r = REV[col];
+    frag.appendChild(el);
+  };
   for (const [idx, str] of clusters(text)) {
     let col = null;
-    for (let k = 0; k < str.length; k++) if (marks.has(idx + k)) { col = marks.get(idx + k); break; }
-    if (col) {
-      flush();
-      const el = mk('i', null, str); el.style.color = col;
-      if (REV[col]) el.dataset.r = REV[col];
-      frag.appendChild(el);
-    } else run += str;
+    if (marks) for (let k = 0; k < str.length; k++) if (marks.has(idx + k)) { col = marks.get(idx + k); break; }
+    if (!col && exact && exact.has(idx)) col = exact.get(idx);
+    if (col) { put(str, col); continue; }
+    const hit = exact ? [...str].map((_, k) => k).filter(k => k > 0 && exact.has(idx + k)) : [];
+    if (!hit.length) { run += str; continue; }
+    for (let k = 0; k < str.length; k++) {
+      if (exact.has(idx + k) && k > 0) put(str[k], exact.get(idx + k)); else run += str[k];
+    }
   }
   flush();
   return frag;
@@ -230,13 +237,14 @@ function renderQ() {
     const ay = mk('span', 'ay');
     for (const [seq, text] of words) {
       const w = mk('span', 'w'); w.tabIndex = 0; w.dataset.seq = seq;
-      const marks = new Map(); const cols = [];
+      const marks = new Map(), exact = new Map(); const cols = [];
       for (const { e, off } of cover.get(seq) || []) {
         for (const r of e.r) {
           if (!S.sel.has(r.id) || r.same) continue;
           const c = S.color[r.id];
           if (!cols.includes(c)) cols.push(c);
           for (const i of r.dq || []) { const k = i - off; if (k >= 0 && k < text.length && !marks.has(k)) marks.set(k, c); }
+          for (const i of r.dqa || []) { const k = i - off; if (k >= 0 && k < text.length) exact.set(k, c); }
         }
       }
       if (cols.length) {
@@ -244,7 +252,7 @@ function renderQ() {
         const stops = cols.map((c, i) => c + ' ' + (i * 100 / cols.length) + '% ' + ((i + 1) * 100 / cols.length) + '%');
         w.style.backgroundImage = 'linear-gradient(to left,' + stops.join(',') + ')';
       }
-      w.appendChild(paint(text, marks));
+      w.appendChild(paint(text, marks, exact));
       ay.appendChild(w); ay.appendChild(document.createTextNode(' '));
     }
     ayahMark(ay, ayNo);
@@ -355,14 +363,15 @@ function entryNode(e, only, hl) {
     else if (r.x) {
       const tx = mk('span', 'tx'); setFont(tx, r.f || 'hafs');
       const marks = new Map(); (r.dx || []).forEach(i => marks.set(i, S.color[r.id]));
-      tx.appendChild(paint(r.x, marks)); row.appendChild(tx);
+      const exact = new Map(); (r.dxa || []).forEach(i => exact.set(i, S.color[r.id]));
+      tx.appendChild(paint(r.x, marks, exact)); row.appendChild(tx);
       const tags = mk('span', 'tags');
       if (r.n) tags.append(mk('span', 'tag', r.n));
       if (r.cond) tags.append(mk('span', 'tag', condText(r)));
       if (r.khulf) tags.append(mk('span', 'tag', 'بخلافٍ عنه'));
       if (tags.childNodes.length) row.appendChild(tags);
     } else {
-      row.appendChild(mk('span', 'same', r.n ? 'يخالف قالون: ' + r.n : 'يخالف قالون'));
+      row.appendChild(mk('span', 'same', r.n ? 'يخالف قالون: ' + r.n : 'يخالف قالون (لم يُبيَّن وجهه في المصادر المتاحة)'));
       const tags = mk('span', 'tags');
       if (r.cond) tags.append(mk('span', 'tag', condText(r)));
       if (r.khulf) tags.append(mk('span', 'tag', 'بخلافٍ عنه'));
