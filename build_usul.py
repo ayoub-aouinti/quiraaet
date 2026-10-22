@@ -4,6 +4,8 @@
 الأصولُ لا يذكرها الكتابُ عند كل موضع («ويقاس عليه»)، فتُطبَّق هنا بمحوِّلاتٍ تُنتج كلمةَ الراوي من كلمة قالون:
 
   صلة ميم الجمع   ابن وردان وابن جماز كالبزي (مصحفُه شاهدٌ): «لَكُمْ» ← «لَكُمُۥ» قبل متحرّك
+  صلة هاء الضمير   البزي وقنبل (ابن كثير): هاءٌ بين ساكنٍ ومتحرّك بياء لفظية بعد الياء الساكنة وبواو بعد غيرها؛
+                   يشهد لكلٍّ مصحفُه (علامة الصلة ۥ/ۦ بعد الهاء، وقالونُ لا يُثبتها)
   إبدال الهمز الساكن   ابن وردان وابن جماز كالسوسي (مصحفُه شاهدٌ) إلا «أنبئهم» و«ننبئهم»
   ضمّ هاء «عليهم وإليهم ولديهم»   حمزة (خلف وخلاد) ويعقوب (رويس وروح)؛ ولو ليعقوب كل هاء بعد ياء ساكنة
   مدّ المتصل   ورش وحمزة (خلف وخلاد) ٦ حركات، وغيرهم ٤ كقالون فلا خلاف (بتصحيح صاحب المشروع)
@@ -16,12 +18,12 @@
 (مدّ متصل: حرف مدٍّ ثم همزة في الكلمة؛ منفصل: كلمةٌ تنتهي بحرف مدٍّ ثم كلمةٌ أولها همزة).
 """
 import json, os, re
-from canon import canon, diff_idx, norm
+from canon import canon, diff_idx, norm, silah_idx
 
 DATA = 'app/data'
 WAQF = re.compile('[ۖ-ۜ۞۩]')
 HAMZA = 'ءأإؤئ'
-MUSH = {'bazzi': 'bazzi', 'susi': 'susi'}
+MUSH = {'bazzi': 'bazzi', 'susi': 'susi', 'qunbul': 'qunbul', 'warsh': 'warsh'}
 
 
 def jl(p):
@@ -55,6 +57,26 @@ MUTTASIL = re.compile('(?:َا|ُو|ِي)[%s]' % HAMZA)
 MUNFASIL = re.compile('(?:َا|ُوا?|ِي)$')
 HAMZ_START = re.compile('^[۞۞(]*[أإءؤئآ]')
 LAM = re.compile('^(?:(?:[وف][َِ]?)?(?:[بك][َِ]?)?ال|(?:[وف][َِ]?)?لِل)[ءأإؤئآ]')
+# الهمزتان من كلمة (همزة الاستفهام وبعدها همزة): قالون يفصل بينهما بألفٍ (ٰ في رسمه) ولا ألفَ لورش
+PAIR = re.compile('^[۞]?[وف]?[أء]َٰ')
+PAIR_KASRA = {'أذا', 'أله', 'أنا', 'أنك'}
+PAIR_DAMMA = {'أشهدوا', 'ألقي', 'أنزل', 'أونبئكم'}
+PAIR_NOTE = {'fatha': 'وجهان: إبدال الهمزة الثانية ألفاً مع المدّ، أو تسهيلها بين بين من غير إدخال',
+             'kasra': 'تسهيل الهمزة الثانية بين بين (بينها وبين الياء) من غير إدخال',
+             'damma': 'تسهيل الهمزة الثانية بين بين (بينها وبين الواو) من غير إدخال'}
+
+
+def pair_kind(raw):
+    if not PAIR.match(raw):
+        return None
+    if 'ٰا۬' in raw:
+        return 'fatha'
+    if 'ٰئ' in raw:
+        return 'kasra'
+    L = re.sub('[^ء-ي]', '', raw)
+    return 'kasra' if L in PAIR_KASRA else 'damma' if L in PAIR_DAMMA else None
+
+
 SHAY = re.compile('^(?:[وفبلك][َِ]?)?شَي[ءئ]')
 
 
@@ -119,8 +141,8 @@ LIN = re.compile('َ[يو][%s]' % HAMZA)
 
 
 def tarqiq_idx(raw):
-    """مواضع الراء المرقَّقة لورش: مفتوحةً أو مضمومةً بعد كسرٍ أو ياءٍ ساكنة أو ساكنٍ غير مستعلٍ بعد كسر،
-    وساكنةً بعد كسرٍ لا يليها مستعلٍ"""
+    """مواضع الراء المرقَّقة لورش: مفتوحةً أو مضمومةً بعد كسرٍ أو ياءٍ ساكنة أو ساكنٍ غير مستعلٍ بعد كسر.
+    والراء الساكنة بعد كسرٍ لا يليها مستعلٍ مرقَّقةٌ عند الجميع فليست خلافاً (بتصحيح صاحب المشروع)"""
     T, out = toks(raw), []
     for i, (c, m, pos) in enumerate(T):
         if c != 'ر' or i == 0:
@@ -134,9 +156,6 @@ def tarqiq_idx(raw):
             elif p in 'يے' and not pm & (FATH | DAMM | KASR | {'ّ'}):
                 out.append(pos)
             elif i >= 2 and pm & SUK and p not in HEAVY and T[i - 2][1] & KASR and p not in 'يے':
-                out.append(pos)
-        elif m & SUK and not m & (FATH | DAMM | KASR):
-            if pm & KASR and i + 1 < len(T) and T[i + 1][0] not in HEAVY:
                 out.append(pos)
     return out
 
@@ -168,8 +187,9 @@ def main():
     b_silat = slice_between(E['b0045']['t'], '" عليهم "')
     b_ibdal = E['b0049']['t']
     b_madd = slice_between(E['b0051']['t'], '" بما أنزل "')
-    RULES = {'silat': b_silat, 'ibdal': b_ibdal, 'madd': b_madd}      # تُخزَّن مرةً واحدة ويُحال إليها
-    b_silat, b_ibdal, b_madd = '@silat', '@ibdal', '@madd'
+    b_hakina = E['b0048']['t'].split('"', 2)[2].strip()
+    RULES = {'silat': b_silat, 'ibdal': b_ibdal, 'madd': b_madd, 'hakina': b_hakina}      # تُخزَّن مرةً واحدة ويُحال إليها
+    b_silat, b_ibdal, b_madd, b_hakina = '@silat', '@ibdal', '@madd', '@hakina'
 
     # كلمات قالون بتسلسلها العام
     Q = []
@@ -188,7 +208,7 @@ def main():
         mw[rid] = m
 
     per = {}
-    st = {'silat': 0, 'ibdal': 0, 'ha': 0, 'muttasil': 0, 'munfasil': 0, 'madd': 0, 'sakt_lam': 0, 'sakt_shay': 0, 'sakt_sep': 0, 'badal': 0, 'lin': 0, 'tarqiq': 0, 'taghliz': 0, 'faw': 0}
+    st = {'silat': 0, 'ibdal': 0, 'ha': 0, 'muttasil': 0, 'munfasil': 0, 'madd': 0, 'sakt_lam': 0, 'sakt_shay': 0, 'sakt_sep': 0, 'badal': 0, 'lin': 0, 'tarqiq': 0, 'taghliz': 0, 'faw': 0, 'hakina': 0}
 
     def add(w, recs, bayan, key):
         st[key] += 1
@@ -231,6 +251,25 @@ def main():
                 rec = {'x': bz, 'f': 'bazzi', 'dq': dq, 'dx': dx, 'n': 'صلة ميم الجمع بواو'}
                 add(w, {'ibn_wardan': dict(rec), 'ibn_jammaz': dict(rec)}, b_silat, 'silat')
 
+        # ١-ب) صلة هاء الضمير لابن كثير: هاءٌ بعد ساكنٍ وقبل متحرّك. يشهد لها مصحفُ كلٍّ من البزي وقنبل
+        #      (علامة الصلة بعد الهاء ولا مقابلَ لها في قالون). وما وُجدت علامتُه خارجَ هذا الضابط لا يُعمَّم هنا.
+        nx_ = Q[i + 1] if i + 1 < len(Q) and Q[i + 1]['sura'] == w['sura'] else None
+        T_ = toks(raw)
+        if nx_ and len(T_) >= 2 and T_[-1][0] == 'ه' and not re.match('^[۞(]*[اٱ]', WAQF.sub('', nx_['text']).strip()):
+            pm = T_[-2][1]
+            if 'ٰ' in pm or pm & SUK or not pm & (FATH | DAMM | KASR):
+                recs = {}
+                for rid in ('bazzi', 'qunbul'):
+                    x = mw[rid].get(w['seq'])
+                    da, db = silah_idx(w['text'], x) if x else ([], [])
+                    if da:
+                        ya = 'ۦ' in x[db[-1]:db[-1] + 1]
+                        dq, dx = letters(w['text'], x)
+                        recs[rid] = {'x': x, 'f': rid, 'dq': sorted(set(dq) | set(da)), 'dx': sorted(set(dx) | set(db)),
+                                     'n': 'صلة هاء الضمير ' + ('بياء لفظية' if ya else 'بواو لفظية')}
+                if recs:
+                    add(w, recs, b_hakina, 'hakina')
+
         # ٢) إبدال الهمز الساكن (فاءً أو عيناً أو لاماً): يشهد له مصحفُ السوسي
         m = re.search('([َُِ])([%s])(?![ًٌٍَُِ])' % HAMZA, c)
         if m and norm(raw) not in ('انبيهم', 'ننبيهم'):
@@ -259,7 +298,8 @@ def main():
         # ٤) المدّ المتصل والمنفصل (لا يظهر في المصاحف)
         #    المتصل: ورش وحمزة (خلف وخلاد) ٦ حركات، وغيرهم ٤ كقالون فلا خلاف (بتصحيح صاحب المشروع)
         mc = madd_str(raw)
-        muttasil = MUTTASIL.search(mc) is not None
+        pk = pair_kind(raw)
+        muttasil = MUTTASIL.search(mc) is not None and not pk     # ألفُ الفصل بين الهمزتين ليست مدّاً متصلاً لغير قالون
         munfasil = bool(nxt) and MUNFASIL.search(mc) is not None and HAMZ_START.match(nxt['text']) is not None
         if muttasil or munfasil:
             recs = {}
@@ -291,7 +331,15 @@ def main():
             add(w, {'khalaf_h': {'n': 'السكت على الساكن المفصول قبل الهمز وصلاً، وله تركُه'}}, None, 'sakt_sep')
 
         # ٦) ورش: مدّ البدل (٢ أو ٤ أو ٦) ومدّ اللين قبل الهمز (٤ أو ٦) وترقيق الراء
-        if has_badal(raw):
+        if pk:
+            # باب الهمزتين من كلمة (ورش): لا مدّ بدلٍ ولا مدّ متصل؛ بل إبدالٌ أو تسهيلٌ بلا إدخال (بتصحيح صاحب المشروع)
+            wx = mw['warsh'].get(w['seq'])
+            rec = {'n': PAIR_NOTE[pk]}
+            if wx:
+                fx = next((k for k, c in enumerate(wx) if c in 'أءا'), 0)
+                rec.update({'x': wx, 'f': 'warsh', 'dq': [w['text'].index('ٰ')], 'dx': [fx]})
+            add(w, {'warsh': rec}, None, 'badal')
+        elif has_badal(raw):
             add(w, {'warsh': {'n': 'مدّ البدل: قصر أو توسط أو إشباع (٢ أو ٤ أو ٦)'}}, None, 'badal')
         if LIN.search(c):
             add(w, {'warsh': {'n': 'مدّ اللين قبل الهمز: توسط أو إشباع (٤ أو ٦)'}}, None, 'lin')

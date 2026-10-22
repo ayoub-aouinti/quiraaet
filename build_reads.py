@@ -16,9 +16,9 @@
 import json, os, re
 from difflib import SequenceMatcher
 import unicodedata
-from canon import diff_idx, canon
+from canon import diff_idx, canon, silah_idx
 from normalize import norm
-from describe import describe, has_taqlil
+from describe import describe, has_taqlil, tokens, INITIAL_HAMZA
 from warsh_khulf import load as load_khulf
 from build_usul import tarqiq_idx, taghliz_idx, FAW
 
@@ -28,6 +28,7 @@ ALL = ['qalun', 'warsh', 'bazzi', 'qunbul', 'duri_a', 'susi', 'hisham', 'ibn_dha
 MUSH = {'warsh': 'warsh', 'bazzi': 'bazzi', 'qunbul': 'qunbul', 'duri_a': 'duri', 'susi': 'susi',
         'shuba': 'shuba', 'hafs': 'hafs'}                       # الراوي ← معرّف مصحفه
 PRIORITY = ['qunbul', 'bazzi', 'warsh', 'susi', 'duri_a', 'shuba', 'hafs']   # ترتيب الاقتباس من الزملاء
+IK = ('bazzi', 'qunbul')                                      # ابن كثير: تُلوَّن صلةُ الهاء في مصحفَيهما
 OWN_FIRST = ['warsh', 'bazzi', 'qunbul']                        # يُضاف لهم فرق المصحف حيث لا بيان
 RNAME = {'hisham': 'هشام عن ابن عامر', 'ibn_dhakwan': 'ابن ذكوان عن ابن عامر', 'khalaf_h': 'خلف عن حمزة',
          'khallad': 'خلّاد عن حمزة', 'abu_harith': 'أبو الحارث عن الكسائي', 'duri_k': 'الدوري عن الكسائي',
@@ -131,10 +132,13 @@ def gidx(a, rid):
     return -1
 
 
-def letters(phrase, x):
+def letters(phrase, x, sil=False):
     dq, dx = diff_idx(phrase, x)
     if len(dq) > 0.6 * max(1, len(phrase.replace(' ', ''))):
         return [], []                    # اختلافُ ترميزٍ عام لا تمييزُ حروف
+    if sil:                              # صلة هاء الضمير (ابن كثير): علامتُها تُسقِطها الصورةُ المختزلة
+        da, db = silah_idx(phrase, x)
+        dq, dx = sorted(set(dq) | set(da)), sorted(set(dx) | set(db))
     return dq, dx
 
 
@@ -143,7 +147,7 @@ for _w, _v in load_khulf().items():
     KHULF.setdefault(skel(_w), set()).update(_v)
 
 
-def emit(n, items, stats, phrase=None):
+def emit(n, items, stats, phrase=None, prevw=None):
     out = []
     for k in sorted(items):
         it = items[k]
@@ -166,7 +170,20 @@ def emit(n, items, stats, phrase=None):
                     r = dict(r, dqa=tq, dxa=tx)
                 if r.get('x') and not r.get('same') and phrase and r.get('f') != 'qalun' and r.get('src') != 'd':
                     # وصفُ فرق الكلمة من مقابلة الحروف (لا من بيان ملف الخلاف)، ويُقدَّم على ما عمّمته الأصول
-                    dsc = describe(phrase(it['s'], it['e']), r['x'], warsh=(rid == 'warsh'))
+                    qw_ = phrase(it['s'], it['e'])
+                    dq_, dx_ = silah_idx(qw_, r['x'])
+                    if rid in IK and r['f'] in IK and dx_ and cstr(qw_) == cstr(r['x']):
+                        # الفرق صلةُ الهاء وحدها: يُوصَف بها (ولا يُترك لوصف الحروف فيخلط ما أسقطته الصورةُ المختزلة)
+                        kinds = sorted({'بياء لفظية' if r['x'][i] == 'ۦ' else 'بواو لفظية' for i in dx_})
+                        dsc = 'صلة هاء الضمير ' + ' وب'.join(kinds) if len(kinds) == 1 else 'صلة هاء الضمير ' + ' و'.join(kinds)
+                    else:
+                        dsc = describe(qw_, r['x'], warsh=(rid == 'warsh'))
+                    if dsc and INITIAL_HAMZA in dsc and rid == 'warsh' and prevw and it['s'] == it['e']:
+                        # الهمزة الأولى مرسومةٌ ألفاً: إن تغيّر آخرُ الكلمة السابقة في مصحف ورش (ساكنٌ حُرِّك) فهو نقلُ حركتها إليه
+                        pq, pw = prevw(it['s'])
+                        A_, B_ = tokens(pq), tokens(pw)
+                        if A_ and B_ and A_[-1][1] == 's' and B_[-1][1] in ('a', 'u', 'i') and A_[-1][0] == B_[-1][0]:
+                            dsc = dsc.replace(INITIAL_HAMZA, 'نقل حركة الهمزة إلى الساكن قبلها (آخر الكلمة السابقة)')
                     if not r.get('n') or (dsc and dsc not in r['n']):
                         r = dict(r, n=' / '.join(x for x in (dsc or ('' if r.get('n') else 'فرق في ضبط الكلمة'), r.get('n')) if x))
                 for key in ('x', 'f', 'ap', 'same', 'cond', 'khulf', 'n', 'dqa', 'dxa'):
@@ -299,7 +316,8 @@ def main():
                         if not mid:
                             return None
                         parts = [mw[mid].get(q) for q in range(s, e + 1)]
-                        if parts and all(parts) and any(p[1] != 0 for p in parts):
+                        if parts and all(parts) and (any(p[1] != 0 for p in parts) or (
+                                mid in IK and silah_idx(ph, ' '.join(p[0] for p in parts))[0])):
                             return ' '.join(p[0] for p in parts), mid
                         return None
 
@@ -322,7 +340,7 @@ def main():
                                 rec['x'], rec['f'], rec['ap'] = d['x'], 'hafs', m
                                 break
                     if rec['x']:
-                        rec['dq'], rec['dx'] = letters(ph, rec['x'])
+                        rec['dq'], rec['dx'] = letters(ph, rec['x'], rec['f'] in IK)
                     it['r'][rid] = rec
                 if snip and okq and re.sub(r'\s+', ' ', snip) in portion:
                     it['r'][rid].setdefault('sn', snip)
@@ -360,10 +378,21 @@ def main():
                 if b not in it['bk']:
                     it['bk'].append(b)
             for r in u['r']:
+                if r['id'] in IK and u['s'] == u['e'] and 'صلة هاء الضمير' in r.get('n', ''):
+                    # العبارةُ المتعدّدة الكلمات التي ذكرها الكتاب تشمل الكلمة: تُضاف الملاحظةُ إليها بدل بطاقةٍ ثانية
+                    cov_k = [k for k, v in items.items() if k[0] < k[1] and k[0] <= u['s'] <= k[1] and r['id'] in v['r']
+                             and v['r'][r['id']].get('x') and not v['r'][r['id']].get('same')]
+                    if cov_k:
+                        ex = items[cov_k[0]]['r'][r['id']]
+                        if r['n'] not in ex.get('n', ''):
+                            ex['n'] = (ex.get('n', '') + ' / ' + r['n']).strip(' /')
+                        continue
                 if r['id'] in it['r']:
                     ex = it['r'][r['id']]
                     if r.get('n') and r['n'] not in ex.get('n', ''):
                         ex['n'] = (ex.get('n', '') + ' / ' + r['n']).strip(' /')
+                    if r['id'] in IK and r.get('x') and not ex.get('same') and not ex.get('x'):
+                        ex.update({k: r[k] for k in ('x', 'f', 'dq', 'dx')})
                     if r['id'] == 'warsh' and r.get('x') and not ex.get('same'):
                         if not ex.get('x'):
                             ex.update({k: r[k] for k in ('x', 'f', 'dq', 'dx')})
@@ -385,8 +414,15 @@ def main():
         for q in qseqs:
             for rid in OWN_FIRST:
                 t = mw[MUSH[rid]].get(q)
-                if t and t[1] == 1 and q not in covered[rid]:   # الرسم المحض (2) لا يُعدّ خلافَ قراءة
-                    dq, dx = letters(qall[q][0], t[0])
+                if t and (t[1] == 1 or (rid in IK and silah_idx(qall[q][0], t[0])[0])) and q in covered[rid]:
+                    # البند موجودٌ بلا كلمةٍ للراوي (من أصلٍ معمَّم): تُكتب كلمتُه من مصحفه ويُلوَّن موضعُ الفرق
+                    r0 = items.get((q, q), {}).get('r', {}).get(rid)
+                    if r0 and not r0.get('x') and not r0.get('same'):
+                        r0['x'], r0['f'] = t[0], MUSH[rid]
+                        r0['dq'], r0['dx'] = letters(qall[q][0], t[0], rid in IK)
+                if t and (t[1] == 1 or (rid in IK and silah_idx(qall[q][0], t[0])[0])) and q not in covered[rid]:
+                    # الرسم المحض (2) لا يُعدّ خلافَ قراءة؛ وصلةُ الهاء في مصحف ابن كثير فرقٌ تُسقِطه الصورةُ المختزلة
+                    dq, dx = letters(qall[q][0], t[0], rid in IK)
                     it = item(q, q)
                     it['t'] = it['t'] or 'm'
                     it['r'][rid] = {'x': t[0], 'f': MUSH[rid], 'same': False, 'dq': dq, 'dx': dx}
@@ -511,7 +547,8 @@ def main():
 
     stats = {'items': 0}
     for n in range(1, 115):
-        emit(n, allitems[n], stats, lambda a, b: ' '.join(qall[i][0] for i in range(a, b + 1) if i in qall))
+        emit(n, allitems[n], stats, lambda a, b: ' '.join(qall[i][0] for i in range(a, b + 1) if i in qall),
+             lambda q: (qall.get(q - 1, ('', 0))[0], (mw['warsh'].get(q - 1) or ('',))[0]))
 
     # فروق الرسم المحض (تصنيف 2) التي لا يسندها بيانٌ تُزال من مصاحف الروايات: لا علاقة لها بالقراءة
     cov = {rid: set() for rid in MUSH}
@@ -533,6 +570,14 @@ def main():
                         del w[3:]
                         ch = True
                         dropped += 1
+                    elif rid in IK and w[1] in cov[rid] and w[1] in qall:
+                        da_, db_ = silah_idx(qall[w[1]][0], w[0])     # صلة الهاء: يُعلَّم الحرفُ في مصحف الرواية
+                        if db_ and w[2] != 2:
+                            have_d = w[3] if len(w) > 3 else []
+                            if w[2] == 0 or not set(db_) <= set(have_d):
+                                w[2] = 1
+                                w[3:] = [sorted(set(have_d) | set(db_))]
+                                ch = True
             if ch:
                 dump(path, d)
 

@@ -15,6 +15,7 @@ NAMES = {'ء': 'الهمزة', 'ا': 'الألف', 'ب': 'الباء', 'ت': 'ا
          'ي': 'الياء', 'ة': 'التاء المربوطة'}
 LETTER = {'ٱ': 'ا', 'أ': 'ء', 'إ': 'ء', 'ؤ': 'ء', 'ئ': 'ء', 'ى': 'ي', 'ے': 'ي', 'ی': 'ي', 'ک': 'ك'}
 VOW = {'َ': 'a', 'ً': 'a', 'ٗ': 'a', 'ُ': 'u', 'ٌ': 'u', 'ٞ': 'u', 'ِ': 'i', 'ٍ': 'i', 'ٖ': 'i', 'ْ': 's', 'ۡ': 's'}
+INITIAL_HAMZA = 'همزة الكلمة مرسومة ألفاً'
 VN = {'a': 'فتح', 'u': 'ضمّ', 'i': 'كسر', 's': 'سكون'}
 VT = {'a': 'الفتح', 'u': 'الضمّ', 'i': 'الكسر'}
 VPRO = {'a': 'فتحها', 'u': 'ضمّها', 'i': 'كسرها'}
@@ -96,7 +97,9 @@ def items(q, x):
             if i2 - i1 == j2 - j1:
                 for k in range(i2 - i1):
                     a, b = A[i1 + k][0], B[j1 + k][0]
-                    if a == 'ء' and b in 'اوي':
+                    if a == 'ء' and b == 'ا' and i1 + k == 0:
+                        add(INITIAL_HAMZA)       # همزةٌ أولَ الكلمة مرسومةٌ ألفاً: ليس إبدالاً (يُحسَم في build_reads بالكلمة السابقة)
+                    elif a == 'ء' and b in 'اوي':
                         add('إبدال الهمزة %s' % {'ا': 'ألفاً', 'و': 'واواً', 'ي': 'ياءً'}[b])
                     elif b == 'ء' and a in 'اوي':
                         add('همزة بدل %s' % NAMES[a])
@@ -110,7 +113,9 @@ def items(q, x):
         elif tag == 'insert':
             for k, t in enumerate(B[j1:j2]):
                 prev = A[i1 - 1][0] if i1 > 0 else ''
-                if t[0] in 'وي' and j2 == len(B) and prev in 'مه':
+                if t[0] in 'وي' and j2 == len(B) and prev == 'ه':
+                    add('صلة هاء الضمير ب%s لفظية' % ('ياء' if t[0] == 'ي' else 'واو'))
+                elif t[0] in 'وي' and j2 == len(B) and prev == 'م':
                     add('صلة %s ب%s' % (NAMES[prev], NAMES[t[0]]))
                 elif t[0] == 'ا':
                     add('إثبات ألف')
@@ -118,6 +123,15 @@ def items(q, x):
                     add('زيادة همزة')
                 else:
                     add('زيادة %s' % NAMES[t[0]])
+    # نقل الحركة: رسمُ ورش يكتب الهمزة المنقولة ألفاً صامتة بلا حركة (اِ۬لَارْضِ) وقد حُرِّك الساكنُ قبلها بحركتها
+    if len(A) == len(B):
+        for i in range(1, len(A)):
+            if (A[i][0] == 'ء' and B[i][0] == 'ا' and B[i][1] is None and A[i - 1][1] == 's' and A[i][1] in 'aui'
+                    and B[i - 1][1] == A[i][1] and A[i - 1][0] == B[i - 1][0]):
+                mv = {'a': 'بالفتح', 'u': 'بالضمّ', 'i': 'بالكسر'}[A[i][1]]
+                out = [t for t in out if t not in ('تحريك %s %s' % (NAMES[A[i - 1][0]], mv), 'إبدال الهمزة ألفاً')]
+                if 'نقل حركة الهمزة إلى الساكن قبلها' not in out:
+                    out.insert(0, 'نقل حركة الهمزة إلى الساكن قبلها')
     if 'حذف الهمزة' in out and any(t.startswith('تحريك ') for t in out):
         out = [t for t in out if t != 'حذف الهمزة' and not t.startswith('تحريك ')]
         out.insert(0, 'نقل حركة الهمزة إلى الساكن قبلها')

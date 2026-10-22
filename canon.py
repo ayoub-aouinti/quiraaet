@@ -71,6 +71,30 @@ def canon(w):
     return keep
 
 
+_L = 'ء-ي'
+SIL_MARK = re.compile('ه[^%s]*?([ۥۦ])[^%sۥۦ]*$' % (_L, _L))   # هاءٌ أخيرة بعدها ۥ أو ۦ
+TAIL_HA = re.compile('ه[^%s]*$' % _L)
+
+
+def silah_idx(a, b):
+    """صلةُ الهاء التي تُسقِطها الصورةُ المختزلة (ۥ ۦ لا حرفٌ ولا حركة): هاءٌ أخيرة في كلمة b بعدها علامةُ صلة
+    ولا صلةَ في مقابلتها من a. يُرجِع (مواضع في a: الهاء، مواضع في b: علامة الصلة). والعبارتان بعدد كلمات واحد."""
+    wa, wb = a.split(' '), b.split(' ')
+    if len(wa) != len(wb):
+        return [], []
+    da, db, oa, ob = [], [], 0, 0
+    for u, v in zip(wa, wb):
+        mv = SIL_MARK.search(v)
+        if mv and not SIL_MARK.search(u):
+            mu = TAIL_HA.search(u)
+            if mu:
+                da.append(oa + mu.start())
+                db.append(ob + mv.start(1))
+        oa += len(u) + 1
+        ob += len(v) + 1
+    return da, db
+
+
 def vcanon(w):
     return ''.join(c for c, _ in canon(w))
 

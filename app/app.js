@@ -354,7 +354,7 @@ function entryNode(e, only, hl) {
     setFont(ph, 'qalun'); ph.style.fontSize = '1.4rem'; box.appendChild(ph);
   }
   const rank = r => (r.id === 'qalun' ? 2 : S.sel.has(r.id) ? 1 : 0);
-  const order = rs.slice().sort((a, b) => rank(b) - rank(a));
+  const order = rs.filter(r => only || r.id === 'qalun' || S.sel.has(r.id)).sort((a, b) => rank(b) - rank(a));   // من أُلغي تحديدُه لا يظهر خلافُه
   for (const r of order) {
     const row = mk('div', 'rr' + (hl === r.id ? ' hl' : '') + (S.sel.has(r.id) || r.id === 'qalun' ? '' : ' dim'));
     const nm = mk('span', 'nm'); const chip = mk('span', 'chip'); chip.style.background = S.color[r.id] || 'var(--muted)';
@@ -388,8 +388,8 @@ function onWordQ(span, ev) {
   document.querySelectorAll('.w.sel').forEach(x => x.classList.remove('sel')); span.classList.add('sel');
   const ents = (S.cur.cover.get(seq) || []).map(c => c.e);
   const score = e => e.r.filter(r => S.sel.has(r.id)).length;
-  const nodes = ents.slice().sort((a, b) => score(b) - score(a)).map(e => entryNode(e, null, hl));
-  if (!nodes.length) nodes.push(mk('p', 'empty', 'لا خلاف مسجَّل لهذه الكلمة في المصادر المتوفرة. وخلوّ الموضع من خلافٍ ليس نفياً له؛ قد يكون نقصاً في المصدر.'));
+  const nodes = ents.filter(e => score(e) > 0).sort((a, b) => score(b) - score(a)).map(e => entryNode(e, null, hl));
+  if (!nodes.length) nodes.push(mk('p', 'empty', ents.length ? 'لا خلاف في هذه الكلمة للرواة المحدَّدين.' : 'لا خلاف مسجَّل لهذه الكلمة في المصادر المتوفرة. وخلوّ الموضع من خلافٍ ليس نفياً له؛ قد يكون نقصاً في المصدر.'));
   openSheet(S.cur.qtext.get(seq), 'qalun', nodes);
 }
 
