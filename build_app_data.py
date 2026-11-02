@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""يُخرج بيانات التطبيق (app/data) وينسخ خطوط المجمع (app/fonts).
+"""يُخرج بيانات التطبيق (data) وينسخ خطوط المجمع (fonts).
 
   meta.json            السور والروايات والقراء وخطوطها
   qalun/<n>.json       كلمات قالون لكل سورة (المرجع)
@@ -15,7 +15,7 @@ from canon import norm, classify, diff_idx
 from riwayat_text import riwaya_words, basmala
 from link_khilaf import plain_names
 
-OUT = 'app'
+OUT = '.'
 RIW = {
     'qalun':  ('قالون عن نافع',     'qalun'),
     'warsh':  ('ورش عن نافع',       'warsh'),

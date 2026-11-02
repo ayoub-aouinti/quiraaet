@@ -37,13 +37,15 @@ riwayat_text.py      كلمات الرواية: سورة وآية وموضع (ع
 parse_khilaf.py      جداول الخلاف ← out/khilaf.json   (الأعمدة المدموجة تُقرأ على الشبكة)
 link_khilaf.py       ربط الخلاف بكلمات قالون ← out/khilaf_linked.json (exact | rasm | shifted)
 canon.py             الصورة المختزلة للكلمة ومواضع الحروف المخالفة
-build_app_data.py    app/data/** وخطوط app/fonts  (≈٢٧ ميغا)
-build_usul.py        تعميمُ الأصول (ميم الجمع، الهمز الساكن، ضمّ الهاء، المدّ) ← app/data/usul/** و rules.json
-build_reads.py       طبقةُ الخلاف الموحَّدة app/data/reads/** (بعد build_app_data و build_badur_data و build_usul)
-app/                 الواجهة: index.html + app.js + style.css، بلا بناء
+build_app_data.py    data/** وخطوط fonts/  (≈٤٧ ميغا)
+build_usul.py        تعميمُ الأصول (ميم الجمع، الهمز الساكن، ضمّ الهاء، المدّ) ← data/usul/** و rules.json
+build_reads.py       طبقةُ الخلاف الموحَّدة data/reads/** (بعد build_app_data و build_badur_data و build_usul)
+backend/             Django: models (PostgreSQL، JSONB للطبقات) و API قراءة فقط؛ import_data يستورد data/** و verify_import يقارنها حرفياً
+frontend/            React + TypeScript (Vite): الواجهة، ويحافظ على رابط الحالة نفسه
 ```
 
-تشغيل محلي: `cd app && python -m http.server 8765` ثم `http://127.0.0.1:8765/`.
+تشغيل محلي: انظر README.md (`docker compose up -d db` ثم `manage.py migrate && import_data && runserver`، و`npm run dev` في frontend).
+الحقل `bk` يُخزَّن في القاعدة ولا يخدمه الـ API (`strip_bk` في `backend/qiraat/views.py`).
 روابط الحالة: `#s=<سورة>&m=q|r&w=<رواية>&r=<قراء>&o=<كلمة>`.
 
 ## ما تُسقطه المقارنةُ عمداً وما يترتّب عليه
@@ -62,14 +64,14 @@ app/                 الواجهة: index.html + app.js + style.css، بلا ب
 parse_badur.py        المداخل (كل مدخل نصٌّ حرفيّ) ← out/badur_entries.jsonl
 (وكلاء)               الوسم: من قرأ بماذا ← out/badur_annot/chunk_NN.json   [تعليماته: sources/books/badur/ANNOTATION.md]
 locate_badur.py       موضع المدخل في كلمات قالون (محاذاةٌ متصاعدة بالبرمجة الديناميكية)
-build_badur_data.py   app/data/badur/<سورة>.json + app/data/badur_unlocated.json
+build_badur_data.py   data/badur/<سورة>.json + data/badur_unlocated.json
 ```
 
 - **النصُّ حرفيّ والوسمُ آليّ.** الوسمُ (مجموعاتُ الرواة) صنعه نموذجٌ ولم يُراجَع على الكتاب؛ فكلُّ إدخالٍ
   يُعرَض بنصّه الحرفي ومعه «الوسم غير مُتحقَّق»، و`u` يُعلِّم المشكوك فيه. و`snip` يُتحقَّق آلياً أنه جزءٌ حرفيّ.
 - **الباقون يُحسَبون بالتتمة** في الواجهة (`rest`)، و`implicit` لمن اختصّ بوجهٍ ولم يُذكَر غيرُه («ترقيقه لورش»).
 - **لا يُلوَّن ما لم يُعرَف فيه وجهُ قالون** (`q = -1`).
-- **الواجهة لا تعرض نصَّ هذا الكتاب ولا تُسمّيه** (بطلب صاحب المشروع): نصُّه محفوظٌ في الحقل `bk` من app/data/reads/** ولا يُقرأ في الواجهة، ولا يُعرَض في `b` إلا بيانُ ملفات الخلاف؛ تُعرَض ثمرتُه كسائر ملفات الخلاف: كلمةُ الراوي وحروفُه
+- **الواجهة لا تعرض نصَّ هذا الكتاب ولا تُسمّيه** (بطلب صاحب المشروع): نصُّه محفوظٌ في الحقل `bk` من data/reads/** ولا يُقرأ في الواجهة، ولا يُعرَض في `b` إلا بيانُ ملفات الخلاف؛ تُعرَض ثمرتُه كسائر ملفات الخلاف: كلمةُ الراوي وحروفُه
   المخالفة ثم بيانُه بلفظ المصدر. ويبقى أصلُه مذكوراً هنا وفي `sources/books/badur` للتوثيق.
 - **كلمةُ الراوي** (`build_reads.py`): من مصحفه إن وُجد، وإلا من ملف الخلاف، وإلا ≈ من مصحف راوٍ اتفق معه في
   الوجه (ثم من نصّ ملف الخلاف لزميله). وتُعمَّم المقرَّبةُ على نظائر الكلمة إن أظهر مصحفُ الزميل التغييرَ عينَه (`t = p`).

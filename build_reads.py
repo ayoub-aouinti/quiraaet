@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""طبقةُ الخلاف الموحَّدة: app/data/reads/<سورة>.json.
+"""طبقةُ الخلاف الموحَّدة: data/reads/<سورة>.json.
 
 لكل موضعٍ من كلمات قالون (s..e) عنصرٌ فيه رواةٌ يخالفونه، ولكل راوٍ:
   x  كلمةُ قراءته   f  خطُّها (رواية المصحف الذي أُخذت منه)   ap  ≈ مقرَّبةٌ من مصحف راوٍ اتفق معه في الوجه
@@ -22,7 +22,7 @@ from describe import describe, has_taqlil, tokens, INITIAL_HAMZA
 from warsh_khulf import load as load_khulf
 from build_usul import tarqiq_idx, taghliz_idx, FAW
 
-DATA = 'app/data'
+DATA = 'data'
 ALL = ['qalun', 'warsh', 'bazzi', 'qunbul', 'duri_a', 'susi', 'hisham', 'ibn_dhakwan', 'shuba', 'hafs',
        'khalaf_h', 'khallad', 'abu_harith', 'duri_k', 'ibn_wardan', 'ibn_jammaz', 'ruways', 'rawh', 'ishaq', 'idris']
 MUSH = {'warsh': 'warsh', 'bazzi': 'bazzi', 'qunbul': 'qunbul', 'duri_a': 'duri', 'susi': 'susi',

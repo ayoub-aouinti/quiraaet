@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""تعميمُ خلاف الأصول على كلمات قالون كلِّها: app/data/usul/<سورة>.json.
+"""تعميمُ خلاف الأصول على كلمات قالون كلِّها: data/usul/<سورة>.json.
 
 الأصولُ لا يذكرها الكتابُ عند كل موضع («ويقاس عليه»)، فتُطبَّق هنا بمحوِّلاتٍ تُنتج كلمةَ الراوي من كلمة قالون:
 
@@ -20,7 +20,7 @@
 import json, os, re
 from canon import canon, diff_idx, norm, silah_idx
 
-DATA = 'app/data'
+DATA = 'data'
 WAQF = re.compile('[ۖ-ۜ۞۩]')
 HAMZA = 'ءأإؤئ'
 MUSH = {'bazzi': 'bazzi', 'susi': 'susi', 'qunbul': 'qunbul', 'warsh': 'warsh', 'hafs': 'hafs', 'shuba': 'shuba', 'duri_a': 'duri'}

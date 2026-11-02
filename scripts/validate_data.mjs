@@ -3,12 +3,12 @@ import fs from 'node:fs';
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 const exists = file => fs.existsSync(file);
 const issues = [];
-const meta = read('app/data/meta.json');
+const meta = read('data/meta.json');
 
 for (let n = 1; n <= 114; n += 1) {
-  const qFile = `app/data/qalun/${n}.json`;
-  const readsFile = `app/data/reads/${n}.json`;
-  for (const file of [qFile, readsFile, `app/data/khilaf/${n}.json`, `app/data/usul/${n}.json`]) {
+  const qFile = `data/qalun/${n}.json`;
+  const readsFile = `data/reads/${n}.json`;
+  for (const file of [qFile, readsFile, `data/khilaf/${n}.json`, `data/usul/${n}.json`]) {
     if (!exists(file)) issues.push(`fichier manquant: ${file}`);
   }
   if (!exists(qFile) || !exists(readsFile)) continue;
@@ -43,7 +43,7 @@ for (let n = 1; n <= 114; n += 1) {
 for (const riwaya of meta.riwayat) {
   if (!riwaya.mush) continue;
   for (let n = 1; n <= 114; n += 1) {
-    const file = `app/data/riw/${riwaya.mush}/${n}.json`;
+    const file = `data/riw/${riwaya.mush}/${n}.json`;
     if (!exists(file)) issues.push(`mushaf manquant: ${file}`);
   }
 }

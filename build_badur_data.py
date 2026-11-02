@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""يدمج وسمَ مداخل «البدور الزاهرة» بمواضعها في قالون ويُخرج app/data/badur/<سورة>.json.
+"""يدمج وسمَ مداخل «البدور الزاهرة» بمواضعها في قالون ويُخرج data/badur/<سورة>.json.
 
 كل مدخل مُخرَج: {i معرّف، s,e كلمتا قالون الأولى والأخيرة، t نصُّ الكتاب حرفياً،
 a جوانب الخلاف [{g:[{r:[رواة]|rest:true, snip}], q: رقم مجموعة قالون|-1}]،
@@ -13,7 +13,7 @@ from collections import Counter
 
 ALL = ['qalun', 'warsh', 'bazzi', 'qunbul', 'duri_a', 'susi', 'hisham', 'ibn_dhakwan', 'shuba', 'hafs',
        'khalaf_h', 'khallad', 'abu_harith', 'duri_k', 'ibn_wardan', 'ibn_jammaz', 'ruways', 'rawh', 'ishaq', 'idris']
-OUT = 'app/data/badur'
+OUT = 'data/badur'
 WS = re.compile(r'\s+')
 
 
@@ -104,7 +104,7 @@ def main():
     for eid, r in A.items():
         if r.get('kind') == 'farsh' and (not L.get(eid) or not L[eid]['loc']):
             un.append({'i': eid, 'sura': E[eid]['sura'], 'w': E[eid]['w'], 't': E[eid]['t']})
-    with open('app/data/badur_unlocated.json', 'w', encoding='utf-8') as f:
+    with open('data/badur_unlocated.json', 'w', encoding='utf-8') as f:
         json.dump(un, f, ensure_ascii=False, separators=(',', ':'))
     st['محفوظة بلا موضع'] = len(un)
     print(dict(st))
