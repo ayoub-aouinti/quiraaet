@@ -189,22 +189,45 @@ def has_badal(raw):
 LIN = re.compile('َ[يو][%s]' % HAMZA)
 
 
+TANWIN_FATH = set('ًٗ')
+# الأعجميّ و«إرم»: تُفخَّم راؤها لورش (صورتها بلا حركات)
+RAA_AJAMI = re.compile('إبرا?هيم|إسرا?ء?يل|عمرا?ن|^(?:[وف])?إرم$')
+STRIP_H = re.compile('[ً-ٰٟۖ-ۭ]')
+
+
 def tarqiq_idx(raw):
     """مواضع الراء المرقَّقة لورش: مفتوحةً أو مضمومةً بعد كسرٍ أو ياءٍ ساكنة أو ساكنٍ غير مستعلٍ بعد كسر.
-    والراء الساكنة بعد كسرٍ لا يليها مستعلٍ مرقَّقةٌ عند الجميع فليست خلافاً (بتصحيح صاحب المشروع)"""
+    والراء الساكنة بعد كسرٍ لا يليها مستعلٍ مرقَّقةٌ عند الجميع فليست خلافاً (بتصحيح صاحب المشروع).
+    وتُفخَّم (فلا تُعدّ): إن وليها حرفُ استعلاءٍ في كلمتها (صراط، فراق، إعراضا)، أو تكرّرت (فرارا، مدرارا)،
+    أو كانت الكسرةُ عارضةً على باء الجرّ أو لامه (بربهم، لرسوله)، أو كانت في أعجميّ (إبراهيم، إسرائيل، عمران) و«إرم»،
+    أو منصوبةً منوَّنةً بعد ساكنٍ غير الياء (ذكرا، سترا، وزرا) على المختار للأزرق"""
     T, out = toks(raw), []
+    if RAA_AJAMI.search(STRIP_H.sub('', raw).replace('ٱ', 'ا')):
+        return out
     for i, (c, m, pos) in enumerate(T):
         if c != 'ر' or i == 0:
             continue
         p, pm, _ = T[i - 1]
         if p == 'ٱ':
             continue
-        if m & (FATH | DAMM) and not m & KASR:
+        # حرفُ استعلاءٍ بعدها (مباشرةً أو بعد ألف) أو راءٌ مكرَّرة
+        j = i + 1
+        if j < len(T) and T[j][0] == 'ا':
+            j += 1
+        if j < len(T) and (T[j][0] in HEAVY or T[j][0] == 'ر'):
+            continue
+        # كسرةُ باء الجرّ أو لامه عارضة: بربهم، لرسوله، وبرحمته، ألربك
+        if p in 'بل' and 'ّ' not in m and (i == 1 or (i == 2 and T[0][0] in 'وفأ')):
+            continue
+        # تنوينُ النصب على الألف بعدها في الرسم المغربي (خيراٗ، ذكراٗ): الراء مفتوحةٌ منوَّنة
+        tnw = bool(m & TANWIN_FATH) or (not m & (FATH | DAMM | KASR | SUK)
+                                       and i + 1 < len(T) and T[i + 1][0] == 'ا' and bool(T[i + 1][1] & TANWIN_FATH))
+        if (m & (FATH | DAMM) or tnw) and not m & KASR:
             if pm & KASR:
                 out.append(pos)
             elif p in 'يے' and not pm & (FATH | DAMM | KASR | {'ّ'}):
                 out.append(pos)
-            elif i >= 2 and pm & SUK and p not in HEAVY and T[i - 2][1] & KASR and p not in 'يے':
+            elif i >= 2 and pm & SUK and p not in HEAVY and T[i - 2][1] & KASR and p not in 'يے' and not tnw:
                 out.append(pos)
     return out
 
